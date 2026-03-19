@@ -1,0 +1,8 @@
+[
+  {
+    "path": "src/App.tsx",
+    "change_type": "modified",
+    "purpose": "Updated background scaling algorithm from 'cover' to 'contain' in the drawing loop to prevent zooming.",
+    "risk_level": "low"
+  }
+]

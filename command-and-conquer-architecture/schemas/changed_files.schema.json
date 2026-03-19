@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ChangedFiles",
+  "description": "Schema for changed_files.json — every file touched during a coder run",
+  "type": "array",
+  "items": {
+    "type": "object",
+    "required": ["path", "change_type", "purpose", "risk_level"],
+    "properties": {
+      "path": {
+        "type": "string",
+        "description": "Relative file path from repo root"
+      },
+      "change_type": {
+        "type": "string",
+        "enum": ["added", "modified", "deleted", "renamed"],
+        "description": "Type of change made to this file"
+      },
+      "purpose": {
+        "type": "string",
+        "description": "Why this file was changed"
+      },
+      "risk_level": {
+        "type": "string",
+        "enum": ["low", "medium", "high"],
+        "description": "Risk level of this change"
+      }
+    },
+    "additionalProperties": false
+  }
+}

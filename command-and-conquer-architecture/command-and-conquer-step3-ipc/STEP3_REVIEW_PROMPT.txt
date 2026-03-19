@@ -1,0 +1,9 @@
+Review these 7 IPC handler files. Check:
+
+1. Do channel names EXACTLY match what's in preload.ts / api.ts?
+2. Do all handlers use the same { error, data } / { error, message } return pattern?
+3. Does the index.ts barrel correctly import and call all registration functions?
+4. Are the service method names called correctly (match what services export)?
+5. Is the knowledge:listAnchors handler reading from the right path pattern?
+
+Output: issues with fixes, or "IPC HANDLERS APPROVED."

@@ -1,0 +1,51 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ReviewChecklist",
+  "description": "Schema for review_checklist.json — validation checks from a coder run",
+  "type": "object",
+  "required": ["checks_run", "checks_skipped", "unresolved_items"],
+  "properties": {
+    "checks_run": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["check", "passed"],
+        "properties": {
+          "check": { "type": "string" },
+          "passed": { "type": "boolean" },
+          "notes": { "type": "string" }
+        }
+      },
+      "description": "Validation checks that were executed"
+    },
+    "checks_skipped": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["check", "reason"],
+        "properties": {
+          "check": { "type": "string" },
+          "reason": { "type": "string" }
+        }
+      },
+      "description": "Checks that were skipped and why"
+    },
+    "unresolved_items": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["item", "severity"],
+        "properties": {
+          "item": { "type": "string" },
+          "severity": {
+            "type": "string",
+            "enum": ["low", "medium", "high"]
+          },
+          "notes": { "type": "string" }
+        }
+      },
+      "description": "Items that remain unresolved after the run"
+    }
+  },
+  "additionalProperties": false
+}

@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ConflictRecord",
+  "description": "Schema for conflict records — auto-created when conflicting docs detected",
+  "type": "object",
+  "required": ["id", "projectId", "docIdA", "docIdB", "description", "createdAt"],
+  "properties": {
+    "id": {
+      "type": "string",
+      "description": "Unique conflict identifier (e.g. CONFLICT-001)"
+    },
+    "projectId": {
+      "type": "string"
+    },
+    "docIdA": {
+      "type": "string",
+      "description": "First conflicting document ID"
+    },
+    "docIdB": {
+      "type": "string",
+      "description": "Second conflicting document ID"
+    },
+    "description": {
+      "type": "string",
+      "description": "AI-generated summary of the conflict"
+    },
+    "recommendation": {
+      "type": "string",
+      "description": "AI-generated recommendation for resolution"
+    },
+    "resolution": {
+      "type": ["string", "null"],
+      "enum": ["acceptA", "acceptB", "manualMerge", null],
+      "description": "How the conflict was resolved (null if unresolved)"
+    },
+    "resolvedAt": {
+      "type": ["string", "null"],
+      "format": "date-time",
+      "description": "When the conflict was resolved"
+    },
+    "createdAt": {
+      "type": "string",
+      "format": "date-time"
+    }
+  },
+  "additionalProperties": false
+}

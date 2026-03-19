@@ -1,0 +1,13 @@
+{
+  "appId": "com.commandandconquer.app",
+  "productName": "Command and Conquer",
+  "directories": {
+    "output": "release/"
+  },
+  "files": [
+    "dist/**/*"
+  ],
+  "win": {
+    "target": ["nsis"]
+  }
+}

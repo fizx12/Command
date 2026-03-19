@@ -1,0 +1,19 @@
+{
+  "items": [
+    {
+      "category": "rendering",
+      "check": "Verify that the full background image is visible and not 'zoomed in' to fit the screen.",
+      "priority": "must"
+    },
+    {
+      "category": "rendering",
+      "check": "Resize the browser window and confirm the image maintains its aspect ratio correctly.",
+      "priority": "must"
+    },
+    {
+      "category": "rendering",
+      "check": "Reviewer feedback 'The background image is zoomed in??' is fully resolved by this fix.",
+      "priority": "must"
+    }
+  ]
+}

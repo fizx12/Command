@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ReviewChecklist",
+  "description": "Schema for review_checklist.json — matches the OUTPUT_FORMAT.md contract",
+  "type": "object",
+  "required": ["checks_run"],
+  "properties": {
+    "checks_run": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["check"],
+        "properties": {
+          "category": { "type": "string" },
+          "check": { "type": "string" },
+          "priority": { "type": "string", "enum": ["must", "should", "nice"] }
+        },
+        "additionalProperties": true
+      }
+    },
+    "checks_skipped": { "type": "array" },
+    "unresolved_items": { "type": "array" }
+  },
+  "additionalProperties": true
+}

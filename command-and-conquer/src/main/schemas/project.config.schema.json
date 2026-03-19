@@ -1,0 +1,32 @@
+{
+  "type": "object",
+  "required": [
+    "project_id",
+    "repo_path",
+    "artifact_output_path",
+    "must_not_break"
+  ],
+  "properties": {
+    "project_id": {
+      "type": "string"
+    },
+    "repo_path": {
+      "type": "string"
+    },
+    "default_branch": {
+      "type": "string"
+    },
+    "coding_tool": {
+      "type": "string"
+    },
+    "artifact_output_path": {
+      "type": "string"
+    },
+    "must_not_break": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  }
+}

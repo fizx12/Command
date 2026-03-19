@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ChangedFiles",
+  "description": "Schema for changed_files.json — matches the OUTPUT_FORMAT.md contract",
+  "type": "array",
+  "items": {
+    "type": "object",
+    "required": ["path", "change_type", "purpose"],
+    "properties": {
+      "path": { "type": "string" },
+      "change_type": {
+        "type": "string",
+        "enum": ["modified", "created", "deleted", "added", "renamed"]
+      },
+      "purpose": { "type": "string" },
+      "risk_level": { "type": "string", "enum": ["low", "medium", "high"] }
+    },
+    "additionalProperties": true
+  }
+}

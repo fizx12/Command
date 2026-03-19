@@ -1,0 +1,103 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "JobResult",
+  "description": "Schema for job_result.json — the primary machine-readable output of every coder run",
+  "type": "object",
+  "required": [
+    "job_id",
+    "tool",
+    "model",
+    "status",
+    "task_title",
+    "scope",
+    "files_inspected",
+    "files_changed",
+    "summary",
+    "risks",
+    "manual_validation",
+    "remaining_gaps"
+  ],
+  "properties": {
+    "job_id": {
+      "type": "string",
+      "description": "Unique run identifier (e.g. RUN-001)"
+    },
+    "tool": {
+      "type": "string",
+      "description": "Which coder tool was used (e.g. cursor, claude-code, antigravity, gemini)"
+    },
+    "model": {
+      "type": "string",
+      "description": "Which model was used (e.g. claude-opus-4, gemini-2.5-pro)"
+    },
+    "status": {
+      "type": "string",
+      "enum": ["success", "partial", "failed"],
+      "description": "Overall outcome of the run"
+    },
+    "task_title": {
+      "type": "string",
+      "description": "Title of the task this run belongs to"
+    },
+    "scope": {
+      "type": "string",
+      "description": "What the run was supposed to accomplish"
+    },
+    "files_inspected": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "All file paths that were read during the run"
+    },
+    "files_changed": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "All file paths that were modified (should match changed_files.json)"
+    },
+    "summary": {
+      "type": "string",
+      "description": "Plain English summary of what was done"
+    },
+    "risks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["description", "severity"],
+        "properties": {
+          "description": { "type": "string" },
+          "severity": {
+            "type": "string",
+            "enum": ["low", "medium", "high"]
+          },
+          "mitigation": { "type": "string" }
+        }
+      },
+      "description": "Known risks introduced by this run"
+    },
+    "manual_validation": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["check", "result"],
+        "properties": {
+          "check": { "type": "string" },
+          "result": {
+            "type": "string",
+            "enum": ["passed", "failed", "skipped", "uncertain"]
+          },
+          "notes": { "type": "string" }
+        }
+      },
+      "description": "Manual validation checks performed"
+    },
+    "remaining_gaps": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Work that was not completed or needs follow-up"
+    },
+    "commit_hash": {
+      "type": ["string", "null"],
+      "description": "Git commit hash if applicable"
+    }
+  },
+  "additionalProperties": false
+}

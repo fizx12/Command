@@ -1,0 +1,36 @@
+{
+  "checks_run": [
+    {
+      "category": "functionality",
+      "check": "Catching any fish triggers a screen shake and a distinct audio ping/jingle.",
+      "priority": "must",
+      "result": "passed"
+    },
+    {
+      "category": "functionality",
+      "check": "Catching a high-weight/trophy fish displays a gold 'Trophy Caught!' popup with its emoji and weight.",
+      "priority": "must",
+      "result": "passed"
+    },
+    {
+      "category": "functionality",
+      "check": "The trophy popup correctly dismisses itself after 5 seconds automatically.",
+      "priority": "must",
+      "result": "passed"
+    },
+    {
+      "category": "performance",
+      "check": "Screen shake effect decays smoothly (0.9 multiplier) without sudden jumps.",
+      "priority": "should",
+      "result": "passed"
+    },
+    {
+      "category": "types",
+      "check": "All new states (shake, trophyCatch) are strictly typed and properly initialized in stateRef/useState.",
+      "priority": "must",
+      "result": "passed"
+    }
+  ],
+  "checks_skipped": [],
+  "unresolved_items": []
+}

@@ -1,0 +1,61 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ClosureRecord",
+  "description": "Schema for closure.json — task closure record, depth varies by task size",
+  "type": "object",
+  "required": ["id", "taskId", "taskSize", "statusAtClose", "resolution", "createdAt"],
+  "properties": {
+    "id": {
+      "type": "string",
+      "description": "Unique closure record identifier"
+    },
+    "taskId": {
+      "type": "string"
+    },
+    "taskSize": {
+      "type": "string",
+      "enum": ["Micro", "Standard", "Major"],
+      "description": "Size classification that determined closure depth"
+    },
+    "statusAtClose": {
+      "type": "string",
+      "enum": ["done", "archived", "blocked"],
+      "description": "Task status when closure was written"
+    },
+    "resolution": {
+      "type": "string",
+      "description": "Brief resolution description"
+    },
+    "solvedSummary": {
+      "type": "string",
+      "description": "AI-drafted summary (Standard/Major) or auto-generated (Micro)"
+    },
+    "remainingGaps": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Open items (required for Standard/Major, optional for Micro)"
+    },
+    "followupTaskIds": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Tasks created as follow-ups"
+    },
+    "sourceDocsUpdated": {
+      "type": "boolean",
+      "description": "Whether stale source docs were updated"
+    },
+    "solvedIssueCreated": {
+      "type": "boolean",
+      "description": "Whether a SolvedIssue was created from this task"
+    },
+    "decisionAnchorId": {
+      "type": "string",
+      "description": "Reference to the DecisionAnchor created at this closure"
+    },
+    "createdAt": {
+      "type": "string",
+      "format": "date-time"
+    }
+  },
+  "additionalProperties": false
+}

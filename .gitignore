@@ -1,0 +1,32 @@
+# Dependencies
+node_modules/
+**/node_modules/
+
+# Build outputs
+dist/
+**/dist/
+build/
+**/build/
+out/
+**/out/
+
+# Project data (potentially large/local)
+workspace/
+**/workspace/
+logs/
+**/logs/
+*.log
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Config/Secrets
+.env
+*.local
+
+# Temporary files
+tmp/
+**/tmp/
+compile_errors.txt
+tsc_output.txt

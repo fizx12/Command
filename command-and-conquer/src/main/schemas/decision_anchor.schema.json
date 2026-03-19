@@ -1,0 +1,48 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "DecisionAnchor",
+  "description": "Schema for decision_anchor.json — fast classification record created at every task/session boundary",
+  "type": "object",
+  "required": ["id", "taskId", "status", "summary", "createdAt"],
+  "properties": {
+    "id": {
+      "type": "string",
+      "description": "Unique anchor identifier (e.g. ANCHOR-001)"
+    },
+    "taskId": {
+      "type": "string",
+      "description": "Task this anchor belongs to"
+    },
+    "sessionId": {
+      "type": ["string", "null"],
+      "description": "Conversation/session ID if applicable"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "Solved",
+        "Broken",
+        "Unsolved",
+        "BugPatch",
+        "Update",
+        "DifficultProblemWithSolution"
+      ],
+      "description": "User-selected classification of the work outcome"
+    },
+    "summary": {
+      "type": "string",
+      "description": "One-line summary (AI-drafted, user-confirmed)"
+    },
+    "filesInPlay": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Files that were involved in this task (auto-populated from run artifacts)"
+    },
+    "createdAt": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 timestamp"
+    }
+  },
+  "additionalProperties": false
+}

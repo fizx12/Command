@@ -1,0 +1,60 @@
+{
+  "type": "object",
+  "required": [
+    "id",
+    "title",
+    "symptom",
+    "rootCause",
+    "fixSummary"
+  ],
+  "properties": {
+    "id": {
+      "type": "string"
+    },
+    "projectId": {
+      "type": "string"
+    },
+    "globalKey": {
+      "type": "string"
+    },
+    "title": {
+      "type": "string"
+    },
+    "symptom": {
+      "type": "string"
+    },
+    "rootCause": {
+      "type": "string"
+    },
+    "fixSummary": {
+      "type": "string"
+    },
+    "filesChanged": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "invariantsPreserved": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "regressionNotes": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "reusablePattern": {
+      "type": "string"
+    },
+    "tags": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  }
+}

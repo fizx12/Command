@@ -1,0 +1,9 @@
+node_modules/
+dist/
+workspace/
+logs/
+*.log
+compile_errors.txt
+tsc_output.txt
+.DS_Store
+Thumbs.db
