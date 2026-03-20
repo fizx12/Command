@@ -14,6 +14,7 @@ import { BootstrapKnowledgeService } from './services/bootstrap-knowledge.servic
 import { PromptRefinerService } from './services/prompt-refiner.service';
 import { PromptFuserService } from './services/prompt-fuser.service';
 import { RepoContextService } from './services/repo-context.service';
+import { FullRepoContextService } from './services/full-repo-context.service';
 import { RunEvaluatorService } from './services/run-evaluator.service';
 import { registerAllHandlers } from './ipc';
 import { initLanHub, stopLanHub } from './services/lanHub';
@@ -27,7 +28,7 @@ const schemaValidator = new SchemaValidator(path.join(basePath, 'src/main/schema
 
 const projectService = new ProjectService(fileStore);
 const taskService = new TaskService(fileStore);
-const knowledgeService = new KnowledgeService(fileStore);
+const knowledgeService = new KnowledgeService(fileStore, projectService);
 const runImporterService = new RunImporterService(fileStore, schemaValidator, knowledgeService, taskService);
 const promptCompilerService = new PromptCompilerService(fileStore, taskService);
 const runWatcherService = new RunWatcherService(fileStore, runImporterService, taskService);
@@ -51,6 +52,7 @@ const bootstrapKnowledgeService = new BootstrapKnowledgeService(fileStore, gemin
 const promptRefinerService = new PromptRefinerService(geminiService);
 const promptFuserService = new PromptFuserService(geminiService);
 const repoContextService = new RepoContextService(geminiService, fileStore);
+const fullRepoContextService = new FullRepoContextService(projectService, fileStore);
 const runEvaluatorService = new RunEvaluatorService(geminiService);
 
 function createWindow() {
@@ -104,6 +106,7 @@ app.whenReady().then(async () => {
     promptRefinerService,
     promptFuserService,
     repoContextService,
+    fullRepoContextService,
     runEvaluatorService
   });
 

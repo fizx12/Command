@@ -1,4 +1,5 @@
 import * as fs from 'fs';
+import * as fsPromises from 'fs/promises';
 import * as path from 'path';
 import { GeminiService } from './gemini.service';
 import { FileStore } from '../storage/file-store';
@@ -7,7 +8,7 @@ import { FileStore } from '../storage/file-store';
 
 /** Directories that are never scanned */
 const SKIP_DIRS = new Set([
-  'node_modules', 'dist', 'build', '.git', 'coverage', '.next', 'out',
+  'node_modules', 'dist', 'build', '.git', 'coverage', '.next', 'out', 'knowledge',
   '.cache', '__pycache__', '.turbo', '.vite', '.svelte-kit', '.nuxt',
   '.output', 'vendor', 'target', 'bin', 'obj', 'tmp', 'temp', 'logs',
 ]);
@@ -78,11 +79,13 @@ export class RepoContextService {
 
     const trimmed = context.trim();
 
-    // Save alongside existing knowledge docs so PromptCompiler picks it up
-    await this.fileStore.writeMarkdown(
-      `workspace/projects/${projectId}/knowledge/docs/REPO_CONTEXT.md`,
-      trimmed,
-    );
+    const workspacePath = `workspace/projects/${projectId}/knowledge/docs/REPO_CONTEXT.md`;
+    const repoKnowledgePath = path.join(repoPath, 'knowledge', 'docs', 'REPO_CONTEXT.md');
+
+    await Promise.all([
+      this.fileStore.writeMarkdown(workspacePath, trimmed),
+      this.writeMarkdownAbsolute(repoKnowledgePath, trimmed),
+    ]);
 
     return { context: trimmed, filesScanned };
   }
@@ -218,5 +221,10 @@ Output ONLY this structure (no preamble, no other text):
 
 ---REPO FILES---
 ${fileContents}`;
+  }
+
+  private async writeMarkdownAbsolute(filePath: string, content: string): Promise<void> {
+    await fsPromises.mkdir(path.dirname(filePath), { recursive: true });
+    await fsPromises.writeFile(filePath, content, 'utf-8');
   }
 }

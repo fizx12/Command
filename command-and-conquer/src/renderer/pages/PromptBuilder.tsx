@@ -9,6 +9,7 @@ import StatusPicker from '../components/common/StatusPicker';
 
 type PromptMode = 'MAX' | 'WeakSAUCE';
 type TaskSize = 'Micro' | 'Standard' | 'Major';
+type TargetCoder = '5.4mini' | 'flash';
 
 type CompiledPromptResult = {
   compiledText: string;
@@ -26,6 +27,7 @@ export default function PromptBuilder() {
 
   const [selectedTaskId, setSelectedTaskId] = useState<string>('');
   const [selectedMode, setSelectedMode] = useState<PromptMode>('MAX');
+  const [selectedTargetCoder, setSelectedTargetCoder] = useState<TargetCoder>('5.4mini');
   const [compiledPrompt, setCompiledPrompt] = useState<string>('');
   const [tokenEstimate, setTokenEstimate] = useState<number>(0);
   const [copied, setCopied] = useState(false);
@@ -53,7 +55,7 @@ export default function PromptBuilder() {
   const [tightenedPrompt, setTightenedPrompt] = useState<string>('');
   const [tightenError, setTightenError] = useState('');
   const [promptView, setPromptView] = useState<'compiled' | 'tightened'>('compiled');
-  
+
   // Track the run ID assigned when compiled
   const [activeRunId, setActiveRunId] = useState<string>('NEW');
 
@@ -194,81 +196,239 @@ export default function PromptBuilder() {
     }
   };
 
-  // Boilerplate section headers — the optimizer never needs these.
-  // Task-specific sections (TASK SPECIFICATION, planner output, carry forward) always
-  // appear FIRST in the compiled prompt, so we stop collecting when we hit the first static header.
-  const STATIC_HEADERS_LIST = [
-    'GLOBAL RULES', 'MASTER PROMPT', 'COMMAND & CONQUER',
-    'APP PRIMER', 'PROJECT PRIMER', 'SOURCE OF TRUTH',
-    'REPO CONTEXT', 'OUTPUT FORMAT', 'OUTPUT LOCATION',
-    'AGENT ROLE', 'AGENT DEFINITION', 'STEP:',
-  ];
+  const buildArchitectPromptTemplate = (
+    targetCoder: TargetCoder,
+    taskText: string,
+    appPrimerText: string,
+    sourceOfTruthText: string
+  ) => {
+    const extractSection = (heading: string): string => {
+      const pattern = new RegExp(`##\\s+${heading}\\s*\\n([\\s\\S]*?)(?=\\n##\\s+|$)`, 'i');
+      const match = taskText.match(pattern);
+      return match?.[1]?.trim() || `[UNKNOWN: ${heading.toLowerCase()} missing]`;
+    };
 
-  /**
-   * Returns ONLY the task-specific sections from the compiled prompt.
-   * Task spec, planner output, and carry forward are always first in the compiled
-   * output — we stop collecting as soon as the first static/boilerplate header appears.
-   * This means the optimizer only sees the "what", not the full app context.
-   */
-  const extractTaskSections = (prompt: string): string => {
+    const objectiveText = extractSection('Objective');
+    const scopeText = extractSection('Scope');
+    const outOfScopeText = extractSection('Out of Scope');
+    const mustPreserveText = extractSection('Must Preserve');
+    const isMini = targetCoder === '5.4mini';
+    const roleLines = isMini
+      ? [
+        'You are an architect building a delta-only coding prompt for a weaker coder.',
+        'Be explicit, stepwise, and anti-drift heavy.',
+        'Prefer the smallest safe diff and the clearest observable behavior.',
+      ]
+      : [
+        'You are an architect building a delta-only coding prompt for a weak coder.',
+        'Stay short, explicit, and dense.',
+      ];
+    const acceptanceFocusLines = isMini
+      ? [
+        '- Narrow broad objectives into observable UI/code behavior.',
+        '- Convert wildcard scope into an exact FILE_PLAN with exact file paths.',
+        '- Do not expand "all sections" or "any relevant elements" into uncontrolled scope.',
+        '- Limit work to the smallest implementation that satisfies the task.',
+        '- Preserve must-preserve items exactly.',
+        '- Make success testable with explicit verification targets.',
+      ]
+      : [
+        '- Narrow broad objectives into observable behavior.',
+        '- Convert wildcard scope into an exact FILE_PLAN with exact file paths.',
+        '- Keep the delta compact and testable.',
+        '- Preserve must-preserve items exactly.',
+      ];
+
+    return [
+      '<role>',
+      ...roleLines,
+      '</role>',
+      '<target_model>',
+      `YOU ARE BUILDING A CODING PROMPT FOR ${targetCoder}`,
+      '</target_model>',
+      '<objective>',
+      objectiveText,
+      '</objective>',
+      '<scope>',
+      scopeText,
+      '</scope>',
+      '<out_of_scope>',
+      outOfScopeText,
+      '</out_of_scope>',
+      '<must_preserve>',
+      mustPreserveText,
+      '</must_preserve>',
+      '<task_specification>',
+      taskText || '[UNKNOWN: task specification missing]',
+      '</task_specification>',
+      '<app_primer>',
+      appPrimerText || '[UNKNOWN: app primer missing]',
+      '</app_primer>',
+      '<source_of_truth>',
+      sourceOfTruthText || '[UNKNOWN: source of truth index missing]',
+      '</source_of_truth>',
+      '<known_facts>',
+      'Use only explicit facts from the task spec, app primer, and source of truth.',
+      'If app primer or source of truth is missing, still return the delta contract and mark the missing facts as [UNKNOWN: ...] or BLOCKERS.',
+      'Do not invent architecture, components, utilities, CSS files, tooltip systems, wrappers, or implementation patterns.',
+      'Do not introduce new exact file paths unless they are explicitly named in the provided packet.',
+      '</known_facts>',
+      '<acceptance_focus>',
+      ...acceptanceFocusLines,
+      isMini
+        ? '- Keep out-of-scope files untouched.'
+        : '- Keep out-of-scope files untouched.',
+      isMini
+        ? '- Preserve existing behavior where possible.'
+        : '- Preserve existing behavior.',
+      '</acceptance_focus>',
+      '<output_contract>',
+      'Enhancements:',
+      'Reason:',
+      '===LEVEL: [FULL|LIGHTWEIGHT|SKELETON]===',
+      '---REMOVE---',
+      '---REPLACE---',
+      '---ADD---',
+      '---FILE_PLAN---',
+      '---CODER_GUARDRAILS---',
+      '---BLOCKERS---',
+      '</output_contract>',
+      '<instructions>',
+      ...(isMini
+        ? [
+          'If the packet is broad and architecture context is missing, return a safe constrained delta.',
+          'Return ONLY the delta contract blocks.',
+          'No XML tags in output.',
+          'No copied packet sections.',
+          'No packet reproduction.',
+          'No prose before or after the delta blocks.',
+          'Output the entire delta contract inside one plain fenced code block.',
+          'Use triple backticks.',
+          'Do not use a language label.',
+          'Put nothing before the opening backticks.',
+          'Put nothing after the closing backticks.',
+          'Inside the code block, output only the delta contract blocks.',
+          'Do not wrap individual lines in inline backticks except where the contract explicitly requires exact file-path formatting.',
+          'Preserve exact block order.',
+          'Do not widen scope.',
+          'Do not invent new files, APIs, hooks, or systems.',
+          'If exact file paths cannot be derived, emit [UNKNOWN: ...] instead of guessing.',
+          'Use In [UNKNOWN: ...]: ... and BLOCKERS instead of guessing.',
+          'If any block cannot be filled using the allowed syntax and provided context, output NONE for that block and explain the gap in BLOCKERS.',
+          'Never emit an exact file path unless it is explicitly present in the packet or directly derivable from the provided context.',
+          'Keep exact scope boundaries.',
+          'Prefer existing patterns already present in scoped files.',
+          'A REPLACE line is allowed only when the left side is an exact line copied verbatim from the provided packet.',
+          'If no exact replace target exists, use NONE.',
+          'Do not use REPLACE for paraphrases or implementation guesses.',
+          'ADD must not narrow wildcard scope into invented exact paths.',
+          'ADD must not introduce new requirements not stated in the packet.',
+          'Do not add architecture decisions unless explicitly present in the provided context.',
+          'If exact file paths are unknown, keep FILE_PLAN constrained with [UNKNOWN: ...] entries only.',
+          'Do not use wildcard globs inside FILE_PLAN.',
+          'If the task is broad and context is missing, prefer BLOCKERS plus a constrained FILE_PLAN over speculative implementation detail.',
+        ]
+        : [
+          'If the packet is broad and architecture context is missing, return a safe constrained delta.',
+          'Return ONLY the delta contract blocks.',
+          'No XML tags in output.',
+          'No copied packet sections.',
+          'No packet reproduction.',
+          'No prose before or after the delta blocks.',
+          'Output the entire delta contract inside one plain fenced code block.',
+          'Use triple backticks.',
+          'Do not use a language label.',
+          'Put nothing before the opening backticks.',
+          'Put nothing after the closing backticks.',
+          'Inside the code block, output only the delta contract blocks.',
+          'Do not wrap individual lines in inline backticks except where the contract explicitly requires exact file-path formatting.',
+          'Preserve exact block order.',
+          'Do not widen scope.',
+          'Do not invent new files, APIs, hooks, or systems.',
+          'If exact file paths cannot be derived, emit [UNKNOWN: ...] instead of guessing.',
+          'Use In [UNKNOWN: ...]: ... and BLOCKERS instead of guessing.',
+          'If any block cannot be filled using the allowed syntax and provided context, output NONE for that block and explain the gap in BLOCKERS.',
+          'Never emit an exact file path unless it is explicitly present in the packet or directly derivable from the provided context.',
+          'A REPLACE line is allowed only when the left side is an exact line copied verbatim from the provided packet.',
+          'If no exact replace target exists, use NONE.',
+          'Do not use REPLACE for paraphrases or implementation guesses.',
+          'ADD must not narrow wildcard scope into invented exact paths.',
+          'ADD must not introduce new requirements not stated in the packet.',
+          'Do not add architecture decisions unless explicitly present in the provided context.',
+          'If exact file paths are unknown, keep FILE_PLAN constrained with [UNKNOWN: ...] entries only.',
+          'Do not use wildcard globs inside FILE_PLAN.',
+          'If the task is broad and context is missing, prefer BLOCKERS plus a constrained FILE_PLAN over speculative implementation detail.',
+        ]),
+      '- Output should be in a code block for easy copying.',
+      '- Exact paths only.',
+      '- No new paths outside scope.',
+      '- No copied scaffolding.',
+      '- If unknown, emit [UNKNOWN: ...].',
+      '- Empty blocks must contain NONE.',
+      '- REMOVE format: one exact line per entry.',
+      '- REPLACE format: one exact line per entry, `old => new`.',
+      '- ADD format: one exact line per entry using one of these prefixes directly:',
+      '- OBJECTIVE:',
+      '- SCOPE:',
+      '- OUT OF SCOPE:',
+      '- MUST PRESERVE:',
+      '- KNOWN FACTS:',
+      '- Do NOT prefix ADD lines with SECTION:.',
+      '- Valid ADD example: OBJECTIVE: Update all references of 4o-mini to gpt 5.4-mini.',
+      '- Invalid ADD example: SECTION: OBJECTIVE: Update all references of 4o-mini to gpt 5.4-mini.',
+      '- FILE_PLAN format: In `exact/path`: exact action',
+      '- FILE_PLAN must use exact file paths only.',
+      '- If exact path cannot be derived, use `In [UNKNOWN: ...]: ...`.',
+      '- FILE_PLAN must not use globs.',
+      '- CODER_GUARDRAILS must use short bullet lines only.',
+      '- CODER_GUARDRAILS must include anti-drift rules and verification focus.',
+      '- BLOCKERS is optional.',
+      '- If BLOCKERS is present, use short bullet lines only.',
+      '- Use BLOCKERS for missing context, scope ambiguity, or blocked assumptions.',
+      '- Reason must not invent motivation beyond the packet. If no explicit reason is present, use a minimal implementation reason only.',
+      '- No prose outside the delta blocks.',
+      '</instructions>',
+    ].join('\n');
+  };
+
+  const normalizeSectionHeader = (value: string) => value.trim().replace(/\s*—.*$/, '').replace(/\s+/g, ' ').toUpperCase();
+
+  const extractSectionByHeader = (prompt: string, headerNames: string[]): string => {
     const parts = prompt.split(/\n\n---\n\n/);
-    const taskParts: string[] = [];
     for (const part of parts) {
       const headerMatch = part.match(/^#+ (.+)/m);
-      const header = headerMatch ? headerMatch[1].trim().toUpperCase() : '';
-      // Stop at the first static section — task sections always precede boilerplate
-      if (STATIC_HEADERS_LIST.some(s => header.includes(s))) break;
-      taskParts.push(part);
+      const header = headerMatch ? normalizeSectionHeader(headerMatch[1]) : '';
+      if (headerNames.includes(header)) {
+        return part;
+      }
     }
-    // Fallback: if break-on-static captured nothing (e.g. non-standard headers),
-    // fall back to the old denylist filter so we always return something useful.
-    if (taskParts.length === 0) {
-      return parts.filter(part => {
-        const headerMatch = part.match(/^#+ (.+)/m);
-        const header = headerMatch ? headerMatch[1].trim().toUpperCase() : '';
-        return !STATIC_HEADERS_LIST.some(s => header.includes(s));
-      }).join('\n\n---\n\n');
-    }
-    return taskParts.join('\n\n---\n\n');
+    return '';
+  };
+
+  const extractArchitectContextFromCompiledPrompt = (prompt: string) => {
+    const taskSpecification = extractSectionByHeader(prompt, ['TASK SPECIFICATION']);
+    const appPrimer = extractSectionByHeader(prompt, ['APP PRIMER']);
+    const sourceOfTruthIndex = extractSectionByHeader(prompt, ['SOURCE OF TRUTH INDEX']);
+    const carryForwardSections = [
+      extractSectionByHeader(prompt, ['CARRY FORWARD']),
+      extractSectionByHeader(prompt, ['CARRY-FORWARD']),
+      extractSectionByHeader(prompt, ['HISTORY']),
+    ].filter(Boolean);
+
+    return {
+      taskSpecification,
+      appPrimer,
+      sourceOfTruthIndex,
+      carryForward: carryForwardSections.join('\n\n---\n\n'),
+    };
   };
 
   /**
-   * Strips static boilerplate, prepends level-picking instructions, and copies
-   * to clipboard. Paste into GPT-5.4 / Claude in chat — they have more tokens.
-   * The LLM picks ONE level and outputs ONLY that version.
+   * Builds the full target-coder architect payload and copies it to clipboard.
    */
   const handleCopyToTighten = async () => {
-    if (!compiledPrompt) return;
-    const taskText = extractTaskSections(compiledPrompt);
-
-    const payload = `You are a prompt engineering expert preparing a task for an AI coding agent.
-
-Analyze the TASK SPECIFICATION below. Your job:
-1. Improve the clarity and completeness of the task spec
-2. Choose the minimum context level the coder needs to succeed
-3. Output the improved spec — nothing else
-
-CONTEXT LEVELS:
-FULL — multi-file changes, side effects across modules, unfamiliar codebase area, or complex logic
-LIGHTWEIGHT — isolated change in known area, single file/component, clear requirements
-SKELETON — trivial change, rename, single-line fix, or config-only edit
-
-RULES:
-- Enhance & Clarify: Rewrite the task spec (Objective, Scope, Out of Scope, Must Preserve) to be professional, unambiguous, and highly actionable. Infer and add missing best practices (error handling, edge cases, strict typing) only if logically required but absent.
-- Pick the level that gives the coder JUST ENOUGH context — no more, no less.
-- Keep ALL: explicit file paths and Must Preserve constraints.
-- Remove: vague language, emotional venting, repeated explanations, generic tutorials.
-
-OUTPUT FORMAT — output in this EXACT order, no preamble, no other text:
-
-Enhancements: <one sentence summarizing what you added or clarified vs the raw spec>
-Reason: <evaluate the scope and codebase impact in one sentence>
-===LEVEL: [FULL|LIGHTWEIGHT|SKELETON]===
-
-[improved and tightened task specification here — same section headers]
-
----TASK SPECIFICATION---
-${taskText}`;
+    const payload = await buildArchitectPayloadFallback(selectedTargetCoder);
+    if (!payload) return;
 
     await navigator.clipboard.writeText(payload);
     setCopiedTighten(true);
@@ -280,7 +440,7 @@ ${taskText}`;
     setApplyReason('');
     setApplyEnhancements('');
     setFinalPassResult('');
-    setArchitectStatus('🏗️ Architect payload ready — stripped to task spec + knowledge context. Paste into GPT-5.4 and return the plan.');
+    setArchitectStatus(`🏗️ Architect payload ready — target coder ${selectedTargetCoder}. Paste into chat and return the delta.`);
     setTimeout(() => setCopiedTighten(false), 2500);
   };
 
@@ -290,44 +450,77 @@ ${taskText}`;
    */
   const handleCopyAsArchitect = async () => {
     if (!projectId || !selectedTaskId) return;
-    try {
-      const res = await window.api.prompts.buildArchitect(projectId, selectedTaskId);
-      const payload = res?.error ? '' : String(res.data?.payload || '');
-      const finalPayload = payload || await buildArchitectPayloadFallback();
-      if (!finalPayload) {
-        setArchitectError(res?.message || 'Failed to build architect payload');
-        return;
-      }
-      await navigator.clipboard.writeText(finalPayload);
-      setCopiedArchitect(true);
-      setPasteMode('architect');
-      setShowPasteArea(true);
-      setApplyError('');
-      setArchitectError('');
-      setArchitectStatus('Architect payload ready - stripped to task spec + knowledge context (MAX / WeakSAUCE). Paste into GPT-5.4 and return the plan.');
-      setPasteInput('');
-      setArchitectPasteInput('');
-      setTimeout(() => setCopiedArchitect(false), 2500);
-    } catch {
-      const finalPayload = await buildArchitectPayloadFallback();
-      if (!finalPayload) {
-        setArchitectError('Failed to build architect payload');
-        return;
-      }
-      await navigator.clipboard.writeText(finalPayload);
-      setCopiedArchitect(true);
-      setPasteMode('architect');
-      setShowPasteArea(true);
-      setApplyError('');
-      setArchitectError('');
-      setArchitectStatus('Architect payload ready - stripped to task spec + knowledge context (MAX / WeakSAUCE). Paste into GPT-5.4 and return the plan.');
-      setPasteInput('');
-      setArchitectPasteInput('');
-      setTimeout(() => setCopiedArchitect(false), 2500);
+    const finalPayload = await buildArchitectPayloadFallback(selectedTargetCoder);
+    if (!finalPayload) {
+      setArchitectError('Failed to build architect payload');
+      return;
     }
+    await navigator.clipboard.writeText(finalPayload);
+    setCopiedArchitect(true);
+    setPasteMode('architect');
+    setShowPasteArea(true);
+    setApplyError('');
+    setArchitectError('');
+    setArchitectStatus(`Architect payload ready - target coder ${selectedTargetCoder}. Paste into chat and return the plan.`);
+    setPasteInput('');
+    setArchitectPasteInput('');
+    setTimeout(() => setCopiedArchitect(false), 2500);
   };
 
-  const buildArchitectPayloadFallback = async (): Promise<string> => {
+  const buildArchitectPayloadFallback = async (targetCoder: TargetCoder = selectedTargetCoder): Promise<string> => {
+    const compiledContext = compiledPrompt.trim()
+      ? extractArchitectContextFromCompiledPrompt(compiledPrompt)
+      : null;
+
+    if (compiledContext) {
+      let taskSpecification = compiledContext.taskSpecification;
+      let appPrimerText = compiledContext.appPrimer;
+      let sourceOfTruthText = compiledContext.sourceOfTruthIndex;
+
+      if ((!taskSpecification || !appPrimerText || !sourceOfTruthText) && projectId && selectedTaskId) {
+        const taskRes = await window.api.tasks.get(projectId, selectedTaskId);
+        const task = taskRes?.error ? null : taskRes?.data;
+        if (task) {
+          if (!taskSpecification) {
+            const taskSpecLines: string[] = ['# TASK SPECIFICATION'];
+            if (task.title) taskSpecLines.push(`**Title:** ${task.title}`);
+            if (task.size) taskSpecLines.push(`**Size:** ${task.size}`);
+            if (task.description) taskSpecLines.push(`\n## Objective\n${task.description}`);
+            if (task.scope) taskSpecLines.push(`\n## Scope\n${task.scope}`);
+            if (task.outOfScope) taskSpecLines.push(`\n## Out of Scope\n${task.outOfScope}`);
+            if (Array.isArray(task.mustPreserve) && task.mustPreserve.length)
+              taskSpecLines.push(`\n## Must Preserve\n${task.mustPreserve.map((item: string) => `- ${item}`).join('\n')}`);
+            taskSpecification = taskSpecLines.join('\n');
+          }
+
+          if (!appPrimerText || !sourceOfTruthText) {
+            const docsRes = await window.api.knowledge.listDocs(projectId);
+            const docs = Array.isArray(docsRes?.data) ? docsRes.data : [];
+            if (!appPrimerText) {
+              const primerDoc = docs.find((doc: { id?: string; title?: string; name?: string }) =>
+                String(doc.id || doc.title || doc.name || '').toUpperCase().includes('APP_PRIMER')
+              );
+              appPrimerText = primerDoc?.content || '';
+            }
+            if (!sourceOfTruthText) {
+              const sourceDoc = docs.find((doc: { id?: string; title?: string; name?: string }) =>
+                String(doc.id || doc.title || doc.name || '').toUpperCase().includes('SOURCE_OF_TRUTH_INDEX')
+              );
+              sourceOfTruthText = sourceDoc?.content || '';
+            }
+          }
+        }
+      }
+
+      const taskText = [taskSpecification, compiledContext.carryForward].filter(Boolean).join('\n\n---\n\n');
+      return buildArchitectPromptTemplate(
+        targetCoder,
+        taskText || '[UNKNOWN: task specification missing]',
+        appPrimerText || '[UNKNOWN: app primer missing]',
+        sourceOfTruthText || '[UNKNOWN: source of truth index missing]'
+      );
+    }
+
     if (!projectId || !selectedTaskId) return '';
 
     const taskRes = await window.api.tasks.get(projectId, selectedTaskId);
@@ -343,49 +536,22 @@ ${taskText}`;
       String(doc.id || doc.title || doc.name || '').toUpperCase().includes('SOURCE_OF_TRUTH_INDEX')
     );
 
-    // Build task spec as a single block — NOT split by --- separators
     const taskSpecLines: string[] = ['# TASK SPECIFICATION'];
-    if (task.title)       taskSpecLines.push(`**Title:** ${task.title}`);
-    if (task.size)        taskSpecLines.push(`**Size:** ${task.size}`);
+    if (task.title) taskSpecLines.push(`**Title:** ${task.title}`);
+    if (task.size) taskSpecLines.push(`**Size:** ${task.size}`);
     if (task.description) taskSpecLines.push(`\n## Objective\n${task.description}`);
-    if (task.scope)       taskSpecLines.push(`\n## Scope\n${task.scope}`);
-    if (task.outOfScope)  taskSpecLines.push(`\n## Out of Scope\n${task.outOfScope}`);
+    if (task.scope) taskSpecLines.push(`\n## Scope\n${task.scope}`);
+    if (task.outOfScope) taskSpecLines.push(`\n## Out of Scope\n${task.outOfScope}`);
     if (Array.isArray(task.mustPreserve) && task.mustPreserve.length)
       taskSpecLines.push(`\n## Must Preserve\n${task.mustPreserve.map((item: string) => `- ${item}`).join('\n')}`);
     const taskSpecBlock = taskSpecLines.join('\n');
 
-    const architectPersona = `# SYSTEM DIRECTIVE: CHIEF ARCHITECT
-You are the Chief Software Architect. Your job is to take this task spec and produce a phased, literal implementation plan for a junior coding agent.
-
-### THE RULES OF ARCHITECTURE:
-1. **Zero Ambiguity:** Say exactly which component, handler, or file changes. Never say "update the UI."
-2. **State the Obvious:** Explicitly list imports, interface updates, and IPC channel names when relevant.
-3. **Strict Guardrails:** Define exactly what the agent must NOT touch to prevent collateral damage.
-4. **Chronological Phasing:** Types/state → services/IPC → UI.
-
-### OUTPUT FORMAT
-Output ONLY the following two sections in order. No preamble, no commentary.
-
-1. Reproduce the # TASK SPECIFICATION section from above — verbatim, unchanged.
-
-2. Then output:
-
-# PLANNER OUTPUT
-
-**Phase 1: Types & State (The Foundation)**
-* [ ] ...
-**Phase 2: Backend & Services (The Logic)**
-* [ ] ...
-**Phase 3: Frontend & UI (The Presentation)**
-* [ ] ...
-**Phase 4: Final Verification**
-* [ ] ...`;
-
-    const sections: string[] = [architectPersona, taskSpecBlock];
-    if (primerDoc?.content) sections.push(primerDoc.content);
-    if (sourceDoc?.content) sections.push(sourceDoc.content);
-
-    return sections.join('\n\n---\n\n');
+    return buildArchitectPromptTemplate(
+      targetCoder,
+      taskSpecBlock,
+      primerDoc?.content || '',
+      sourceDoc?.content || ''
+    );
   };
 
   /** Parse the pasted LLM result, fuse with statics, run gpt-4o-mini final pass. */
@@ -410,7 +576,7 @@ Output ONLY the following two sections in order. No preamble, no commentary.
         setShowPasteArea(false);
         setPasteInput('');
         if (projectId && selectedTaskId && activeRunId !== 'NEW') {
-          await window.api.prompts.save(projectId, selectedTaskId, activeRunId, fused).catch(() => {});
+          await window.api.prompts.save(projectId, selectedTaskId, activeRunId, fused).catch(() => { });
         }
       }
     } finally {
@@ -468,7 +634,7 @@ Output ONLY the following two sections in order. No preamble, no commentary.
         setPromptView('tightened');
         // Save tightened prompt to overwrite the backend's compiled run prompt
         if (projectId && selectedTaskId && activeRunId !== 'NEW') {
-          await window.api.prompts.save(projectId, selectedTaskId, activeRunId, tightText).catch(() => {});
+          await window.api.prompts.save(projectId, selectedTaskId, activeRunId, tightText).catch(() => { });
         }
       }
     } finally {
@@ -581,11 +747,10 @@ Output ONLY the following two sections in order. No preamble, no commentary.
                 <label className="text-sm font-medium text-text-primary">Task</label>
                 <button
                   onClick={() => { setShowNewTask(s => !s); setCreateTaskError(''); }}
-                  className={`text-xs font-bold px-2 py-0.5 rounded transition ${
-                    showNewTask
+                  className={`text-xs font-bold px-2 py-0.5 rounded transition ${showNewTask
                       ? 'bg-accent/20 text-accent'
                       : 'text-text-secondary hover:text-accent'
-                  }`}
+                    }`}
                 >
                   {showNewTask ? '✕ cancel' : '+ New'}
                 </button>
@@ -677,11 +842,10 @@ Output ONLY the following two sections in order. No preamble, no commentary.
                       <button
                         key={s}
                         onClick={() => setNewTaskSize(s)}
-                        className={`flex-1 py-1 rounded text-xs font-bold transition ${
-                          newTaskSize === s
+                        className={`flex-1 py-1 rounded text-xs font-bold transition ${newTaskSize === s
                             ? 'bg-accent text-white'
                             : 'bg-surface-alt text-text-secondary hover:text-text-primary'
-                        }`}
+                          }`}
                       >
                         {s}
                       </button>
@@ -733,16 +897,30 @@ Output ONLY the following two sections in order. No preamble, no commentary.
                     key={mode}
                     type="button"
                     onClick={() => setSelectedMode(mode)}
-                    className={`rounded-full px-4 py-2 text-sm font-medium transition ${
-                      selectedMode === mode
+                    className={`rounded-full px-4 py-2 text-sm font-medium transition ${selectedMode === mode
                         ? 'bg-accent text-white'
                         : 'bg-surface text-text-secondary hover:text-text-primary'
-                    }`}
+                      }`}
                   >
                     {mode}
                   </button>
                 ))}
               </div>
+            </div>
+
+            <div className="flex items-center justify-between bg-surface border border-surface-alt rounded-lg px-3 py-2">
+              <div className="flex flex-col">
+                <span className="text-[10px] font-bold text-text-secondary uppercase tracking-wider">Target Coder</span>
+                <span className="text-sm font-mono font-bold text-text-primary">{selectedTargetCoder}</span>
+              </div>
+              <select
+                value={selectedTargetCoder}
+                onChange={(e) => setSelectedTargetCoder(e.target.value as TargetCoder)}
+                className="rounded-md border border-surface-alt bg-surface px-2 py-1 text-xs font-mono text-text-primary outline-none focus:border-accent"
+              >
+                <option value="5.4mini">5.4mini</option>
+                <option value="flash">flash</option>
+              </select>
             </div>
 
             {/* Model recommendation */}
@@ -758,7 +936,7 @@ Output ONLY the following two sections in order. No preamble, no commentary.
               <div className="mb-2 block text-sm font-medium text-text-primary">Task Status</div>
               <StatusPicker
                 value={String((selectedTask as { status?: string } | null)?.status ?? 'backlog')}
-                onChange={() => {}}
+                onChange={() => { }}
                 options={['backlog', 'active', 'review', 'approved', 'done', 'blocked', 'archived']}
               />
             </div>
@@ -785,7 +963,7 @@ Output ONLY the following two sections in order. No preamble, no commentary.
                   type="button"
                   onClick={handleTighten}
                   disabled={tightening || !compiledPrompt}
-                  title={!compiledPrompt ? 'Compile a prompt first' : 'Delta tighten with GPT-5.4 (task sections only)'}
+                  title={!compiledPrompt ? 'Compile a prompt first' : `Delta tighten for ${selectedTargetCoder} (task sections only)`}
                   className="flex-1 py-2 bg-purple-600 text-white rounded-lg font-bold text-sm hover:opacity-90 transition-all disabled:opacity-40 flex items-center justify-center gap-1.5"
                 >
                   {tightening ? (
@@ -802,12 +980,11 @@ Output ONLY the following two sections in order. No preamble, no commentary.
                 <button
                   type="button"
                   onClick={handleCopyToTighten}
-                  title="Strips boilerplate, adds level-picking instructions — paste into GPT-5.4 or Claude chat"
-                  className={`w-full py-2 rounded-lg font-bold text-sm transition-all border ${
-                    copiedTighten
+                  title={`Strips boilerplate, adds target-coder instructions for ${selectedTargetCoder}`}
+                  className={`w-full py-2 rounded-lg font-bold text-sm transition-all border ${copiedTighten
                       ? 'bg-badge-green/20 border-badge-green/40 text-badge-green'
                       : 'bg-surface border-surface-alt text-text-secondary hover:text-text-primary hover:border-accent/40'
-                  }`}
+                    }`}
                 >
                   {copiedTighten ? '✔ Copied — paste into chat LLM' : '📋 Copy to Tighten (manual)'}
                 </button>
@@ -817,14 +994,13 @@ Output ONLY the following two sections in order. No preamble, no commentary.
                 <button
                   type="button"
                   onClick={handleCopyAsArchitect}
-                  title="Builds a Chief Architect payload with task + knowledge context — paste into GPT-5.4 to get a phased implementation plan"
-                  className={`w-full py-2 rounded-lg font-bold text-sm transition-all border ${
-                    copiedArchitect
+                  title={`Builds a Chief Architect payload for ${selectedTargetCoder} with task + knowledge context`}
+                  className={`w-full py-2 rounded-lg font-bold text-sm transition-all border ${copiedArchitect
                       ? 'bg-badge-green/20 border-badge-green/40 text-badge-green'
                       : 'bg-surface border-purple-600/30 text-purple-400 hover:text-purple-300 hover:border-purple-600/50'
-                  }`}
+                    }`}
                 >
-                  {copiedArchitect ? '✔ Copied — paste into GPT-5.4' : '🏗️ Copy as Architect'}
+                  {copiedArchitect ? `✔ Copied — paste for ${selectedTargetCoder}` : '🏗️ Copy as Architect'}
                 </button>
               )}
               {architectStatus && (
@@ -894,11 +1070,10 @@ Output ONLY the following two sections in order. No preamble, no commentary.
               {appliedLevel && (
                 <div className="flex flex-col gap-1.5 p-2.5 bg-surface border border-surface-alt rounded-lg">
                   <div className="flex items-center gap-2 flex-wrap">
-                    <span className={`text-xs font-bold px-2 py-0.5 rounded flex-shrink-0 ${
-                      appliedLevel === 'FULL' ? 'bg-badge-red/20 text-badge-red' :
-                      appliedLevel === 'LIGHTWEIGHT' ? 'bg-accent/20 text-accent' :
-                      'bg-badge-green/20 text-badge-green'
-                    }`}>{appliedLevel}</span>
+                    <span className={`text-xs font-bold px-2 py-0.5 rounded flex-shrink-0 ${appliedLevel === 'FULL' ? 'bg-badge-red/20 text-badge-red' :
+                        appliedLevel === 'LIGHTWEIGHT' ? 'bg-accent/20 text-accent' :
+                          'bg-badge-green/20 text-badge-green'
+                      }`}>{appliedLevel}</span>
                     {applyReason && <span className="text-[10px] text-text-secondary italic">{applyReason}</span>}
                   </div>
                   {applyEnhancements && (
@@ -925,21 +1100,19 @@ Output ONLY the following two sections in order. No preamble, no commentary.
                   <div className="flex gap-1 bg-surface rounded-lg p-1 border border-surface-alt">
                     <button
                       onClick={() => setPromptView('compiled')}
-                      className={`flex-1 py-1 rounded text-xs font-bold transition ${
-                        promptView === 'compiled'
+                      className={`flex-1 py-1 rounded text-xs font-bold transition ${promptView === 'compiled'
                           ? 'bg-surface-alt text-text-primary'
                           : 'text-text-secondary hover:text-text-primary'
-                      }`}
+                        }`}
                     >
                       Original
                     </button>
                     <button
                       onClick={() => setPromptView('tightened')}
-                      className={`flex-1 py-1 rounded text-xs font-bold transition ${
-                        promptView === 'tightened'
+                      className={`flex-1 py-1 rounded text-xs font-bold transition ${promptView === 'tightened'
                           ? 'bg-purple-600/20 text-purple-400 border border-purple-600/30'
                           : 'text-text-secondary hover:text-text-primary'
-                      }`}
+                        }`}
                     >
                       Tightened ✔
                     </button>
@@ -948,13 +1121,12 @@ Output ONLY the following two sections in order. No preamble, no commentary.
                   <button
                     type="button"
                     onClick={handleCopyActive}
-                    className={`w-full py-2 rounded-lg font-bold text-sm transition-all ${
-                      copied
+                    className={`w-full py-2 rounded-lg font-bold text-sm transition-all ${copied
                         ? 'bg-badge-green text-white'
                         : promptView === 'tightened'
                           ? 'bg-purple-600 text-white hover:opacity-90'
                           : 'bg-accent text-white hover:opacity-90'
-                    }`}
+                      }`}
                   >
                     {copied
                       ? '✔ Copied!'
@@ -1019,7 +1191,7 @@ Output ONLY the following two sections in order. No preamble, no commentary.
                 compiledText={activePrompt}
                 tokenEstimate={tokenEstimate}
                 onCopy={handleCopyActive}
-                onExport={() => {}}
+                onExport={() => { }}
                 badgeLabel={previewStateLabel}
                 badgeTone={previewStateTone}
                 banner={previewStateBanner}

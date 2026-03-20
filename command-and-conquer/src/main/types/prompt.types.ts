@@ -41,4 +41,5 @@ export interface CompiledPrompt {
   compiledText: string;
   tokenEstimate: number;
   createdAt: string;
+  validationWarnings?: string[];  // Warnings from prompt-validator, non-blocking
 }

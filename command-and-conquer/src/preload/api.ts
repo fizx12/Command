@@ -18,6 +18,7 @@ export interface ElectronAPI {
     delete: (id: string) => Promise<any>;
     listRepos: (projectId: string) => Promise<any>;
     addRepo: (data: CreateRepoInput) => Promise<any>;
+    buildFullRepoContext: (projectId: string) => Promise<any>;
   };
   tasks: {
     list: (projectId: string) => Promise<any>;
@@ -67,8 +68,9 @@ export interface ElectronAPI {
   };
   system: {
     getHealth: (projectId: string) => Promise<any>;
+    openFolder: (folderPath: string) => Promise<any>;
   };
-  onRunAutoImported: (callback: (payload: Record<string, unknown>) => void) => void;
+  onRunAutoImported: (callback: (payload: Record<string, unknown>) => void) => () => void;
 }
 
 declare global {

@@ -84,6 +84,7 @@ export interface JobResult {
   manual_validation: { check: string; result: string; notes?: string }[];
   remaining_gaps: string[];
   commit_hash: string | null;
+  planned_actions?: { action: string; status: 'completed' | 'skipped' | 'failed'; reason?: string }[];
 }
 
 /** Schema for changed_files.json as imported from coder. */

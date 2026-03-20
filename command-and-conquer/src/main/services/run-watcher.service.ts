@@ -6,6 +6,11 @@ import { RunImporterService } from './run-importer.service';
 import { TaskService } from './task.service';
 import { FileStore } from '../storage/file-store';
 
+/** Strip UTF-8 BOM that AI coding agents frequently prepend to JSON files. */
+function stripBom(text: string): string {
+  return text.charCodeAt(0) === 0xFEFF ? text.slice(1) : text;
+}
+
 /**
  * Normalize a filesystem path to use forward slashes consistently and
  * resolve to an absolute path. Windows configs store paths with mixed
@@ -250,7 +255,7 @@ export class RunWatcherService {
       // Read task_id from job_result so we can link automatically
       let taskId: string | undefined;
       try {
-        const jr = JSON.parse(await fs.readFile(jobResultPath, 'utf8'));
+        const jr = JSON.parse(stripBom(await fs.readFile(jobResultPath, 'utf8')));
         if (jr.task_id) taskId = jr.task_id;
       } catch { /* ignore */ }
 

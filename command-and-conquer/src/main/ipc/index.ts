@@ -9,6 +9,7 @@ import { registerGeminiHandlers } from './gemini.ipc'
 import { PromptRefinerService } from '../services/prompt-refiner.service'
 import { PromptFuserService } from '../services/prompt-fuser.service'
 import { RepoContextService } from '../services/repo-context.service'
+import { FullRepoContextService } from '../services/full-repo-context.service'
 import { RunEvaluatorService } from '../services/run-evaluator.service'
 
 export function registerAllHandlers(services: {
@@ -23,9 +24,10 @@ export function registerAllHandlers(services: {
   promptRefinerService: PromptRefinerService
   promptFuserService: PromptFuserService
   repoContextService: RepoContextService
+  fullRepoContextService: FullRepoContextService
   runEvaluatorService: RunEvaluatorService
 }): void {
-  registerProjectHandlers(services.projectService)
+  registerProjectHandlers(services.projectService, services.fullRepoContextService)
   registerTaskHandlers(services.taskService)
   registerRunHandlers(services.runImporterService, services.fileStore)
   registerKnowledgeHandlers(services.knowledgeService, services.fileStore)

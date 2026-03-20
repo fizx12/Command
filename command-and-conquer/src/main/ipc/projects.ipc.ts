@@ -1,7 +1,8 @@
 import { ipcMain } from 'electron'
 import { ProjectService } from '../services/project.service'
+import { FullRepoContextService } from '../services/full-repo-context.service'
 
-export function registerProjectHandlers(projectService: ProjectService): void {
+export function registerProjectHandlers(projectService: ProjectService, fullRepoContextService?: FullRepoContextService): void {
   ipcMain.handle('projects:list', async () => {
     try {
       const result = await projectService.listProjects()
@@ -85,4 +86,18 @@ export function registerProjectHandlers(projectService: ProjectService): void {
       }
     }
   })
+
+  if (fullRepoContextService) {
+    ipcMain.handle('projects:build-full-repo-context', async (_event, projectId: string) => {
+      try {
+        const result = await fullRepoContextService.buildFullRepoContext(projectId)
+        return { error: false, data: result }
+      } catch (error) {
+        return {
+          error: true,
+          message: error instanceof Error ? error.message : 'Unknown error',
+        }
+      }
+    })
+  }
 }

@@ -2,6 +2,7 @@ import React from 'react';
 
 interface DocCardProps {
   id: string;
+  path: string;
   title: string;
   category: string;
   trustLevel: string;
@@ -9,16 +10,19 @@ interface DocCardProps {
   conflictFlag: boolean;
   lastUpdatedAt: string;
   onClick: () => void;
+  onCopy?: () => void;
 }
 
 const DocCard: React.FC<DocCardProps> = ({
   title,
+  path,
   category,
   trustLevel,
   staleFlag,
   conflictFlag,
   lastUpdatedAt,
-  onClick
+  onClick,
+  onCopy,
 }) => {
   return (
     <div
@@ -26,10 +30,28 @@ const DocCard: React.FC<DocCardProps> = ({
       className="bg-surface-alt rounded-lg p-4 cursor-pointer hover:ring-1 hover:ring-accent transition-all flex flex-col gap-3 group"
     >
       <div className="flex justify-between items-start">
-        <h3 className="text-text-primary font-medium text-sm leading-tight group-hover:text-accent transition-colors">
-          {title}
-        </h3>
+        <div className="min-w-0 pr-2">
+          <h3 className="text-text-primary font-medium text-sm leading-tight group-hover:text-accent transition-colors">
+            {title}
+          </h3>
+          <p className="mt-1 text-[10px] font-mono text-text-secondary truncate">
+            {path}
+          </p>
+        </div>
         <div className="flex gap-1">
+          {onCopy && (
+            <button
+              type="button"
+              onClick={(event) => {
+                event.stopPropagation();
+                onCopy();
+              }}
+              className="px-2 py-0.5 rounded bg-surface border border-surface-alt text-[10px] font-bold uppercase text-text-secondary hover:text-text-primary hover:border-accent/50 transition-colors"
+              title="Copy document content"
+            >
+              Copy Doc
+            </button>
+          )}
           {staleFlag && (
             <span className="bg-badge-yellow/20 text-badge-yellow text-[10px] font-bold px-1.5 py-0.5 rounded">
               STALE

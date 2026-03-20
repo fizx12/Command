@@ -6,6 +6,11 @@ import { Run, JobResult, ImportedChangedFile, ImportedReviewChecklist, RunChange
 import * as path from 'path';
 import * as fs from 'fs/promises';
 
+/** Strip UTF-8 BOM (\uFEFF) that AI coding agents frequently prepend to JSON files. */
+function stripBom(text: string): string {
+  return text.charCodeAt(0) === 0xFEFF ? text.slice(1) : text;
+}
+
 export class RunImporterService {
   private fileStore: FileStore;
   private schemaValidator: SchemaValidator;
@@ -338,9 +343,9 @@ export class RunImporterService {
     if (errors.length > 0) return { valid: false, errors };
 
     try {
-      const jobResultRaw = JSON.parse(await fs.readFile(path.join(folderPath, 'job_result.json'), 'utf8'));
-      const changedFilesRaw = JSON.parse(await fs.readFile(path.join(folderPath, 'changed_files.json'), 'utf8'));
-      const reviewChecklistRaw = JSON.parse(await fs.readFile(path.join(folderPath, 'review_checklist.json'), 'utf8'));
+      const jobResultRaw = JSON.parse(stripBom(await fs.readFile(path.join(folderPath, 'job_result.json'), 'utf8')));
+      const changedFilesRaw = JSON.parse(stripBom(await fs.readFile(path.join(folderPath, 'changed_files.json'), 'utf8')));
+      const reviewChecklistRaw = JSON.parse(stripBom(await fs.readFile(path.join(folderPath, 'review_checklist.json'), 'utf8')));
 
       const jobResult = this.normalizeJobResult(jobResultRaw);
       const changedFiles = this.normalizeChangedFiles(changedFilesRaw);
@@ -454,7 +459,7 @@ export class RunImporterService {
             let summary: string | undefined;
             let taskId: string | undefined;
             try {
-              const rawJr = JSON.parse(await fs.readFile(path.join(fullPath, 'job_result.json'), 'utf8'));
+              const rawJr = JSON.parse(stripBom(await fs.readFile(path.join(fullPath, 'job_result.json'), 'utf8')));
               const jr = this.normalizeJobResult(rawJr);
               
               summary = typeof jr.summary === 'string' ? jr.summary : undefined;
@@ -505,7 +510,7 @@ export class RunImporterService {
     const fullPath = absoluteFolderPath || path.join(runsBase, runId);
 
     const jobResult = this.normalizeJobResult(
-      JSON.parse(await fs.readFile(path.join(fullPath, 'job_result.json'), 'utf8')),
+      JSON.parse(stripBom(await fs.readFile(path.join(fullPath, 'job_result.json'), 'utf8'))),
       taskId
     ) as unknown as JobResult;
 
@@ -514,8 +519,8 @@ export class RunImporterService {
     // Optional files — force=true allows importing with stubs when they're missing
     let changedFilesRaw: string | null = null;
     let reviewChecklistRaw: string | null = null;
-    try { changedFilesRaw = await fs.readFile(path.join(fullPath, 'changed_files.json'), 'utf8'); } catch { /* missing */ }
-    try { reviewChecklistRaw = await fs.readFile(path.join(fullPath, 'review_checklist.json'), 'utf8'); } catch { /* missing */ }
+    try { changedFilesRaw = stripBom(await fs.readFile(path.join(fullPath, 'changed_files.json'), 'utf8')); } catch { /* missing */ }
+    try { reviewChecklistRaw = stripBom(await fs.readFile(path.join(fullPath, 'review_checklist.json'), 'utf8')); } catch { /* missing */ }
 
     if (!changedFilesRaw && !force) throw new Error('changed_files.json missing — use Force Import to proceed anyway.');
     if (!reviewChecklistRaw && !force) throw new Error('review_checklist.json missing — use Force Import to proceed anyway.');

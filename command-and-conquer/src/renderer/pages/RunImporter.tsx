@@ -114,6 +114,22 @@ const RunImporter: React.FC = () => {
     return [...runs].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
   }, [runs]);
 
+  // Group runs by taskId for the grouped history view
+  const runsGroupedByTask = useMemo(() => {
+    const groups: Record<string, typeof sortedRuns> = {};
+    for (const run of sortedRuns) {
+      const key = run.taskId || 'UNKNOWN';
+      if (!groups[key]) groups[key] = [];
+      groups[key].push(run);
+    }
+    return groups;
+  }, [sortedRuns]);
+
+  // Track which task groups are collapsed (collapsed by default)
+  const [collapsedTasks, setCollapsedTasks] = useState<Record<string, boolean>>({});
+  const toggleTaskGroup = (taskId: string) =>
+    setCollapsedTasks(prev => ({ ...prev, [taskId]: !prev[taskId] }));
+
   const loadPrompt = useCallback(async (run: any) => {
     if (!run.promptPath || promptTexts[run.id] !== undefined) return;
     const res = await window.api.runs.readPrompt(run.promptPath);
@@ -324,113 +340,177 @@ const RunImporter: React.FC = () => {
           </div>
         )}
 
-        {/* Imported runs history — compact rows, expand on click */}
-        <div className="flex flex-col gap-1">
-          <h3 className="text-sm font-bold text-text-secondary uppercase tracking-wider mb-1">Run History</h3>
-          {loading && runs.length === 0 ? (
+        {/* Run History — grouped by task, each group collapsible */}
+        <div className="flex flex-col gap-2">
+          <div className="flex items-center justify-between mb-1">
+            <h3 className="text-sm font-bold text-text-secondary uppercase tracking-wider">Run History</h3>
+            <button
+              onClick={() => scanForPending()}
+              disabled={scanning || loading}
+              className="px-3 py-1.5 bg-accent text-white rounded-lg font-bold text-xs shadow-lg shadow-accent/20 hover:opacity-90 disabled:opacity-50 transition-all flex items-center gap-1.5"
+            >
+              {scanning || loading ? (
+                <div className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+              ) : (
+                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+              )}
+              Force
+            </button>
+          </div>
+
+          {loading && sortedRuns.length === 0 ? (
             <div className="flex items-center justify-center py-10">
               <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-accent" />
             </div>
-          ) : sortedRuns.length > 0 ? (
-            sortedRuns.map(run => {
-              const isOpen = selectedRunId === run.id;
-              const statusColor =
-                run.status === 'approved' ? 'bg-badge-green' :
-                run.status === 'rejected' ? 'bg-badge-red' :
-                run.status === 'review' ? 'bg-accent' : 'bg-badge-yellow';
+          ) : Object.keys(runsGroupedByTask).length > 0 ? (
+            Object.entries(runsGroupedByTask).map(([taskId, taskRuns]) => {
+              const taskTitle = taskTitleMap[taskId] || taskId;
+              const isCollapsed = collapsedTasks[taskId] !== false; // collapsed by default
+              const completedRuns = taskRuns.filter(r => r.status === 'approved');
+              const pendingCount = taskRuns.filter(r => r.status === 'review').length;
               return (
-                <div key={run.id} className="flex flex-col rounded-lg overflow-hidden border border-transparent hover:border-surface-alt transition-colors">
-                  {/* Compact row */}
+                <div key={taskId} className="flex flex-col rounded-xl border border-surface-alt overflow-hidden">
+                  {/* Task group header */}
                   <button
-                    onClick={() => { setSelectedRunId(isOpen ? null : run.id); if (!isOpen) loadPrompt(run); }}
-                    className="flex items-center gap-3 px-3 py-2 bg-surface-alt/40 hover:bg-surface-alt text-left w-full transition-colors group"
+                    onClick={() => toggleTaskGroup(taskId)}
+                    className="flex items-center gap-3 px-4 py-3 bg-surface-alt/60 hover:bg-surface-alt text-left w-full transition-colors"
                   >
-                    <div className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${statusColor}`} />
-                    <span className="font-mono text-xs text-text-secondary group-hover:text-accent transition-colors w-20 flex-shrink-0">{run.id}</span>
-                    <span className="text-xs text-text-primary flex-1 truncate min-w-0">
-                      {run.taskId && taskTitleMap[run.taskId] ? (
-                        <span className="text-text-secondary mr-1.5">{taskTitleMap[run.taskId]} —</span>
-                      ) : null}
-                      {run.summary || 'No summary'}
-                    </span>
-                    <span className="text-[10px] text-text-secondary flex-shrink-0 hidden sm:block">{run.changedFiles?.length || 0} files</span>
                     <svg
-                      className={`w-3 h-3 text-text-secondary flex-shrink-0 transition-transform ${isOpen ? 'rotate-180' : ''}`}
+                      className={`w-3.5 h-3.5 text-text-secondary flex-shrink-0 transition-transform ${isCollapsed ? '' : 'rotate-180'}`}
                       fill="none" stroke="currentColor" viewBox="0 0 24 24"
                     >
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
                     </svg>
+                    <span className="text-sm font-bold text-text-primary flex-1 truncate min-w-0">{taskTitle}</span>
+                    <span className="text-[10px] text-text-secondary font-mono flex-shrink-0">{taskRuns.length} runs</span>
+                    {pendingCount > 0 && (
+                      <span className="text-[10px] font-bold bg-accent/20 text-accent px-2 py-0.5 rounded flex-shrink-0">{pendingCount} pending</span>
+                    )}
+                    {completedRuns.length > 0 && (
+                      <span className="text-[10px] font-bold bg-badge-green/20 text-badge-green px-2 py-0.5 rounded flex-shrink-0">{completedRuns.length} approved</span>
+                    )}
                   </button>
 
-                  {/* Expanded detail */}
-                  {isOpen && (
-                    <div className="bg-surface-alt/20 border-t border-surface-alt px-4 py-4 flex flex-col gap-4">
-                      <div>
-                        <h4 className="text-[10px] font-bold text-text-secondary uppercase tracking-wider mb-1.5">Summary</h4>
-                        <p className="text-sm text-text-primary leading-relaxed bg-surface px-3 py-2 rounded border border-surface-alt">
-                          {run.summary || 'No summary.'}
-                        </p>
-                      </div>
-                      {(run.changedFiles?.length || 0) > 0 && (
-                        <div>
-                          <h4 className="text-[10px] font-bold text-text-secondary uppercase tracking-wider mb-1.5">Changed Files ({run.changedFiles.length})</h4>
-                          <div className="flex flex-wrap gap-1.5">
-                            {run.changedFiles.map((file: any, idx: number) => (
-                              <div key={idx} className="bg-surface px-2 py-1 rounded border border-surface-alt flex items-center gap-1.5">
-                                <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${file.changeType === 'added' ? 'bg-badge-green' : file.changeType === 'deleted' ? 'bg-badge-red' : 'bg-badge-yellow'}`} />
-                                <span className="text-[11px] font-mono text-text-primary">{file.path}</span>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                      {run.promptPath && (
-                        <div>
-                          <div className="flex items-center justify-between mb-1.5">
-                            <h4 className="text-[10px] font-bold text-text-secondary uppercase tracking-wider">Original Prompt</h4>
+                  {/* Runs inside this task */}
+                  {!isCollapsed && (
+                    <div className="flex flex-col divide-y divide-surface-alt/50">
+                      {taskRuns.map(run => {
+                        const isOpen = selectedRunId === run.id;
+                        const statusColor =
+                          run.status === 'approved' ? 'bg-badge-green' :
+                          run.status === 'rejected' ? 'bg-badge-red' :
+                          run.status === 'review' ? 'bg-accent' : 'bg-badge-yellow';
+                        return (
+                          <div key={run.id} className="flex flex-col">
                             <button
-                              onClick={() => setShowPromptId(showPromptId === run.id ? null : run.id)}
-                              className="text-[10px] font-bold text-accent hover:underline"
+                              onClick={() => { setSelectedRunId(isOpen ? null : run.id); if (!isOpen) loadPrompt(run); }}
+                              className="flex items-center gap-3 px-4 py-2.5 bg-surface hover:bg-surface-alt/40 text-left w-full transition-colors group"
                             >
-                              {showPromptId === run.id ? 'Hide ↑' : 'View ↓'}
+                              <div className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${statusColor}`} />
+                              <span className="font-mono text-xs text-text-secondary group-hover:text-accent transition-colors w-20 flex-shrink-0">{run.id}</span>
+                              <span className="text-xs text-text-primary flex-1 truncate min-w-0">{run.summary || 'No summary'}</span>
+                              <span className="text-[10px] text-text-secondary flex-shrink-0 hidden sm:block">{run.changedFiles?.length || 0} files</span>
+                              
+                              {/* Quick delete button - visible on hover */}
+                              <button
+                                onClick={async (e) => {
+                                  e.stopPropagation();
+                                  if (confirm(`Delete run ${run.id}?`)) {
+                                    await window.api.runs.delete(projectId as string, run.id);
+                                    refresh();
+                                  }
+                                }}
+                                className="p-1 text-text-secondary hover:text-badge-red transition-colors opacity-0 group-hover:opacity-100"
+                                title="Delete Run"
+                              >
+                                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                </svg>
+                              </button>
+
+                              <svg
+                                className={`w-3 h-3 text-text-secondary flex-shrink-0 transition-transform ${isOpen ? 'rotate-180' : ''}`}
+                                fill="none" stroke="currentColor" viewBox="0 0 24 24"
+                              >
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
+                              </svg>
                             </button>
+
+                            {isOpen && (
+                              <div className="bg-surface-alt/20 border-t border-surface-alt px-5 py-4 flex flex-col gap-4">
+                                <div>
+                                  <h4 className="text-[10px] font-bold text-text-secondary uppercase tracking-wider mb-1.5">Summary</h4>
+                                  <p className="text-sm text-text-primary leading-relaxed bg-surface px-3 py-2 rounded border border-surface-alt">
+                                    {run.summary || 'No summary.'}
+                                  </p>
+                                </div>
+                                {(run.changedFiles?.length || 0) > 0 && (
+                                  <div>
+                                    <h4 className="text-[10px] font-bold text-text-secondary uppercase tracking-wider mb-1.5">Changed Files ({run.changedFiles.length})</h4>
+                                    <div className="flex flex-wrap gap-1.5">
+                                      {run.changedFiles.map((file: any, idx: number) => (
+                                        <div key={idx} className="bg-surface px-2 py-1 rounded border border-surface-alt flex items-center gap-1.5">
+                                          <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${file.changeType === 'added' ? 'bg-badge-green' : file.changeType === 'deleted' ? 'bg-badge-red' : 'bg-badge-yellow'}`} />
+                                          <span className="text-[11px] font-mono text-text-primary">{file.path}</span>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
+                                {run.promptPath && (
+                                  <div>
+                                    <div className="flex items-center justify-between mb-1.5">
+                                      <h4 className="text-[10px] font-bold text-text-secondary uppercase tracking-wider">Original Prompt</h4>
+                                      <button
+                                        onClick={() => setShowPromptId(showPromptId === run.id ? null : run.id)}
+                                        className="text-[10px] font-bold text-accent hover:underline"
+                                      >
+                                        {showPromptId === run.id ? 'Hide ↑' : 'View ↓'}
+                                      </button>
+                                    </div>
+                                    {showPromptId === run.id && (
+                                      <div className="relative">
+                                        <pre className="bg-surface p-3 rounded border border-surface-alt text-[11px] font-mono text-text-primary whitespace-pre-wrap leading-relaxed max-h-64 overflow-y-auto">
+                                          {promptTexts[run.id] === undefined ? 'Loading…' : promptTexts[run.id] || 'Prompt file not found.'}
+                                        </pre>
+                                        {promptTexts[run.id] && (
+                                          <button
+                                            onClick={() => navigator.clipboard.writeText(promptTexts[run.id])}
+                                            className="absolute top-2 right-2 text-[10px] bg-surface-alt px-2 py-1 rounded border border-surface-alt text-text-secondary hover:text-text-primary"
+                                          >
+                                            Copy
+                                          </button>
+                                        )}
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
+                                <div className="flex justify-between items-center mt-2">
+                                  <button
+                                    onClick={async () => {
+                                      if (confirm('Are you sure you want to delete this run? This action cannot be undone.')) {
+                                        await window.api.runs.delete(projectId as string, run.id);
+                                        refresh();
+                                      }
+                                    }}
+                                    className="text-xs font-bold text-badge-red hover:underline"
+                                  >
+                                    Delete Run
+                                  </button>
+                                  <button
+                                    onClick={() => navigate(`/projects/${projectId}/review/${run.taskId}`)}
+                                    className="text-xs font-bold text-accent hover:underline flex items-center gap-1"
+                                  >
+                                    Review this Run →
+                                  </button>
+                                </div>
+                              </div>
+                            )}
                           </div>
-                          {showPromptId === run.id && (
-                            <div className="relative">
-                              <pre className="bg-surface p-3 rounded border border-surface-alt text-[11px] font-mono text-text-primary whitespace-pre-wrap leading-relaxed max-h-64 overflow-y-auto">
-                                {promptTexts[run.id] === undefined ? 'Loading…' : promptTexts[run.id] || 'Prompt file not found.'}
-                              </pre>
-                              {promptTexts[run.id] && (
-                                <button
-                                  onClick={() => navigator.clipboard.writeText(promptTexts[run.id])}
-                                  className="absolute top-2 right-2 text-[10px] bg-surface-alt px-2 py-1 rounded border border-surface-alt text-text-secondary hover:text-text-primary"
-                                >
-                                  Copy
-                                </button>
-                              )}
-                            </div>
-                          )}
-                        </div>
-                      )}
-                      <div className="flex justify-between items-center mt-2">
-                        <button
-                          onClick={async () => {
-                            if (confirm('Are you sure you want to delete this run? This action cannot be undone.')) {
-                              await window.api.runs.delete(projectId as string, run.id);
-                              refresh(); // Refresh list to remove deleted run
-                            }
-                          }}
-                          className="text-xs font-bold text-badge-red hover:underline"
-                        >
-                          Delete Run
-                        </button>
-                        <button
-                          onClick={() => navigate(`/projects/${projectId}/review/${run.taskId}`)}
-                          className="text-xs font-bold text-accent hover:underline flex items-center gap-1"
-                        >
-                          Review this Run →
-                        </button>
-                      </div>
+                        );
+                      })}
                     </div>
                   )}
                 </div>

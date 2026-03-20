@@ -19,6 +19,8 @@ const ProjectDetail: React.FC = () => {
   // Repo context generation
   const [generatingContext, setGeneratingContext] = useState(false);
   const [contextResult, setContextResult] = useState<{ ok: boolean; msg: string } | null>(null);
+  const [buildingFullContext, setBuildingFullContext] = useState(false);
+  const [fullContextResult, setFullContextResult] = useState<{ ok: boolean; msg: string } | null>(null);
 
   // Determine active tab from current URL path
   const getActiveTab = () => {
@@ -45,9 +47,15 @@ const ProjectDetail: React.FC = () => {
   };
 
   const handleGenerateContext = async () => {
-    if (!projectId || !project?.activeRepoId) return;
+    if (!projectId || !project?.activeRepoId) {
+      setContextResult({ ok: false, msg: 'No selected repository is set for this project' });
+      return;
+    }
     const activeRepo = repos.find(r => r.id === project.activeRepoId);
-    if (!activeRepo) return;
+    if (!activeRepo) {
+      setContextResult({ ok: false, msg: 'Selected repository could not be found in the project repository list' });
+      return;
+    }
     const settingsRes = await window.api.settings.get();
     const apiKey = settingsRes?.data?.openaiApiKey || '';
     if (!apiKey) {
@@ -67,6 +75,37 @@ const ProjectDetail: React.FC = () => {
       setContextResult({ ok: false, msg: 'Unexpected error generating context' });
     } finally {
       setGeneratingContext(false);
+    }
+  };
+
+  const handleBuildFullRepoContext = async () => {
+    if (!projectId || !project?.activeRepoId) {
+      setFullContextResult({ ok: false, msg: 'No selected repository is set for this project' });
+      return;
+    }
+    const activeRepo = repos.find(r => r.id === project.activeRepoId);
+    if (!activeRepo) {
+      setFullContextResult({ ok: false, msg: 'Selected repository could not be found in the project repository list' });
+      return;
+    }
+
+    setBuildingFullContext(true);
+    setFullContextResult(null);
+    try {
+        const res = await window.api.projects.buildFullRepoContext(projectId);
+        if (res?.error) {
+          setFullContextResult({ ok: false, msg: res.message || 'Failed to build full repo context' });
+        } else {
+          const snapshot = res.data;
+          setFullContextResult({
+            ok: true,
+            msg: `Done - wrote FULL_REPO_CONTEXT.json (${snapshot?.snapshot?.moduleList?.length ?? 0} modules, ${snapshot?.snapshot?.summaryCounts?.includedFiles ?? 0} files)`,
+          });
+        }
+    } catch {
+      setFullContextResult({ ok: false, msg: 'Unexpected error building full repo context' });
+    } finally {
+      setBuildingFullContext(false);
     }
   };
 
@@ -208,6 +247,30 @@ const ProjectDetail: React.FC = () => {
                     {contextResult && (
                       <p className={`text-[10px] font-medium ${contextResult.ok ? 'text-badge-green' : 'text-badge-red'}`}>
                         {contextResult.ok ? '✓ ' : '✗ '}{contextResult.msg}
+                      </p>
+                    )}
+                  </div>
+                )}
+
+                {/* Build full repo context — deterministic local analysis, writes FULL_REPO_CONTEXT.json */}
+                {project?.activeRepoId && (
+                  <div className="flex flex-col gap-1 mt-4">
+                    <button
+                      onClick={handleBuildFullRepoContext}
+                      disabled={buildingFullContext}
+                      title="Scan the selected repository locally and write a structured FULL_REPO_CONTEXT.json snapshot into the project workspace"
+                      className="flex items-center gap-2 px-3 py-2 bg-surface border border-accent/30 hover:border-accent/60 rounded text-xs font-bold text-accent hover:text-text-primary transition-colors disabled:opacity-50 w-fit"
+                    >
+                      {buildingFullContext
+                        ? <><span className="w-3 h-3 border-2 border-accent/30 border-t-accent rounded-full animate-spin" /> Building snapshot...</>
+                        : 'Build Full Repo Context'}
+                    </button>
+                    <p className="text-[10px] text-text-secondary">
+                      Deterministic local scan. Uses the selected repository and writes `FULL_REPO_CONTEXT.json` to project workspace storage.
+                    </p>
+                    {fullContextResult && (
+                      <p className={`text-[10px] font-medium ${fullContextResult.ok ? 'text-badge-green' : 'text-badge-red'}`}>
+                        {fullContextResult.ok ? '✓ ' : '✗ '}{fullContextResult.msg}
                       </p>
                     )}
                   </div>

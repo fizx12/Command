@@ -81,10 +81,10 @@ function AppLayout() {
   }, [navigate]);
 
   useEffect(() => {
-    window.api.onRunAutoImported((payload) => {
+    const unsubscribe = window.api.onRunAutoImported((payload) => {
       if (payload.type === 'auto-imported') {
         const toast: RunToast = {
-          id: `${payload.runId}-${Date.now()}`,
+          id: crypto.randomUUID(),
           runId: payload.runId as string,
           taskTitle: (payload.taskTitle as string) || (payload.taskId as string),
           summary: payload.summary as string | undefined,
@@ -92,10 +92,9 @@ function AppLayout() {
           taskId: payload.taskId as string,
         };
         setRunToasts(prev => [toast, ...prev].slice(0, 5)); // max 5 toasts
-        // Auto-dismiss after 30 seconds
-        setTimeout(() => dismissToast(toast.id), 30_000);
       }
     });
+    return unsubscribe;
   }, [dismissToast]);
 
   return (

@@ -4,10 +4,7 @@
   import { extractRunFolderFromCompiledPrompt } from './optimizer-trace.utils';
 
   // Headers that identify static boilerplate sections (never tightened - they're shared across all tasks)
-  const STATIC_HEADERS = [
-    'GLOBAL RULES', 'COMMAND & CONQUER', 'OUTPUT FORMAT',
-    'OUTPUT LOCATION', 'AGENT ROLE', 'AGENT DEFINITION',
-  ];
+  const STATIC_HEADERS = ['GLOBAL RULES', 'COMMAND & CONQUER', 'OUTPUT FORMAT', 'OUTPUT LOCATION', 'AGENT ROLE', 'AGENT DEFINITION', 'APP PRIMER', 'SOURCE OF TRUTH INDEX'];
 
   interface PromptSection {
     content: string;
@@ -31,7 +28,7 @@
       const taskSections = sections.filter(s => !s.isStatic);
 
       if (taskSections.length === 0) {
-        // Fallback: tighten whole prompt with flash
+        // Fallback: tighten whole prompt
         return this.tightenWhole(promptText, apiKey, promptText);
       }
 
@@ -52,7 +49,7 @@
       const merged = this.mergeBack(promptText, taskSections, rewrittenTaskText);
 
       const changeSummary = parsed.enhancements
-        || (parsed.warnings.length > 0 ? 'Prompt optimized with fallback parsing' : 'Task-specific sections tightened with GPT-4o-mini');
+        || (parsed.warnings.length > 0 ? 'Prompt optimized with fallback parsing' : 'Task-specific sections tightened');
 
       if (parsed.warnings.length > 0 && trace?.traceFilePath) {
         await this.appendParseNotes(trace.traceFilePath, parsed);
@@ -86,6 +83,7 @@
 
   RULES:
   - Enhance & Clarify: Rewrite the task spec (Objective, Scope, Out of Scope, Must Preserve) to be professional, unambiguous, and highly actionable. Infer and add missing best practices (error handling, edge cases, strict typing) only if logically required but absent.
+  - Sparse Input Protocol: If the raw task is short or lacks technical specifics, infer the likely affected components and write a professional, highly actionable scope. State in your Enhancements log that you had to infer the architecture.
   - Pick the level that gives the coder JUST ENOUGH context — no more, no less.
   - Keep ALL: explicit file paths and Must Preserve constraints.
   - Remove: vague language, emotional venting, repeated explanations, generic tutorials.
@@ -139,20 +137,14 @@
       return { level, reason, enhancements, taskContent, warnings };
     }
 
-    private extractTaskContent(output: string): string {
-      const taskMarker = output.match(/---TASK SPECIFICATION---\s*([\s\S]*)$/i);
-      if (taskMarker?.[1]) {
-        return this.stripLeadingMetadata(taskMarker[1]).trim();
-      }
-
-      const levelMatch = output.match(/(?:===\s*)?LEVEL:\s*(FULL|LIGHTWEIGHT|SKELETON)\s*(?:===)?/i);
-      if (levelMatch?.index !== undefined) {
-        const afterLevel = output.slice(levelMatch.index + levelMatch[0].length);
-        return this.stripLeadingMetadata(afterLevel).trim();
-      }
-
-      return this.stripLeadingMetadata(output).trim();
+  private extractTaskContent(output: string): string {
+    const taskIndex = output.search(/^# TASK SPECIFICATION/im);
+    if (taskIndex !== -1) {
+      return output.slice(taskIndex).trim();
     }
+    // Fallback if the LLM forgot the header
+    return this.stripLeadingMetadata(output).trim();
+  }
 
     private stripLeadingMetadata(text: string): string {
       const lines = text.split(/\r?\n/);
@@ -234,6 +226,6 @@
         undefined,
         trace
       );
-      return { refined: refined.trim(), changeSummary: 'Full prompt tightened with GPT-4o-mini fallback' };
+      return { refined: refined.trim(), changeSummary: 'Full prompt tightened with fallback parsing' };
     }
   }

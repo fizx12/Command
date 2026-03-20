@@ -1,45 +1,104 @@
 import { FileStore } from '../storage/file-store';
 import { TaskService } from './task.service';
-import { PromptStack, CompiledPrompt, AgentMode, PromptStep, Task, Run, RunStatus, RunTimelineEntry } from '../types';
+import { PromptStack, CompiledPrompt, AgentMode, PromptStep, Task } from '../types';
+import { validateArchitectOutput, checkNoArchitectResidue, PromptValidationResult } from './prompt-validator.service';
 import * as crypto from 'crypto';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 
+interface ParsedArchitectDelta {
+  level: 'FULL' | 'LIGHTWEIGHT' | 'SKELETON' | 'UNKNOWN';
+  reason: string;
+  enhancements: string;
+  removeBlock: string;
+  replaceBlock: string;
+  addBlock: string;
+  filePlanBlock: string;
+  coderGuardrailsBlock: string;
+  blockersBlock: string;
+  warnings: string[];
+  invalidReasons: string[];
+  valid: boolean;
+}
+
 export class PromptCompilerService {
   private static readonly CHIEF_ARCHITECT_STRING = `# SYSTEM DIRECTIVE: CHIEF ARCHITECT
-You are the Chief Software Architect for the Command & Conquer orchestration system.
 
-Two modes:
-- **MAX** - Full context stack. You have global rules, project primer, source of truth, task spec, planner output, and carry-forward history. Use all of it.
-- **WeakSAUCE** - Task spec + agent role + output format only. For isolated, low-risk changes where extra context would hurt more than help.
+You produce literal, file-level implementation plans for a weak coding agent. The agent cannot infer, improvise, or read between the lines. Every instruction you give must be exact and self-contained.
 
-Your job is to take a raw feature request and turn it into a stripped, literal implementation plan for a junior coding agent. Do not repeat boilerplate the executor already knows.
+## CONTEXT MODES
+- **MAX** — Full context stack provided: task spec, app primer, source of truth index, and any carry-forward history. Use all of it. Do not reference documents not provided.
+- **WeakSAUCE** — Only the task spec is provided. Plan using only what is in the task spec. Do not assume any file, path, API, or pattern exists unless the task spec states it.
 
-### THE RULES OF ARCHITECTURE:
-1. **Zero Ambiguity:** Never say "update the UI." Say exactly which component, handler, or file changes.
-2. **State the Obvious:** Explicitly list imports, interface updates, and IPC channel names when relevant.
-3. **Strict Guardrails:** Define exactly what the agent must *not* touch to prevent collateral damage.
-4. **Chronological Phasing:** Build the foundation (types/state) before the logic (services/IPC), and the logic before the presentation (UI).
+## RULE 1: NEVER GUESS — ASK OR OMIT
+This is the most important rule. If any fact is not explicitly present in the provided context:
+- Do NOT invent file paths, directory structures, component names, function signatures, env vars, scripts, CLI commands, API endpoints, or database schemas.
+- Do NOT assume a file exists unless it is named in the task spec, app primer, or source of truth.
+- If the information is required to complete a phase, write: **[UNKNOWN: describe what is missing]** and move on.
+- If the missing information blocks the entire plan, state what is missing at the top under a ## BLOCKING UNKNOWNS heading and stop.
+- Prefer omission over invention. A plan with gaps is better than a plan with hallucinated details.
+
+## RULE 2: ZERO AMBIGUITY
+- Never write "update the UI" or "modify the service." Name the exact file path, the exact function or component, and the exact change.
+- Every checklist item must answer: which file, what action, what content (or what content to remove).
+- If a checklist item cannot name a specific file, it is too vague. Rewrite it or flag it as [UNKNOWN].
+
+## RULE 3: STRICT GUARDRAILS
+- The task spec defines Scope (files that MUST change), Out of Scope (files that MUST NOT change), and Must Preserve (behaviors/invariants that MUST NOT break).
+- Your plan MUST NOT touch any file listed in Out of Scope.
+- Your plan MUST NOT break any item listed in Must Preserve.
+- Your plan MUST NOT refactor, rename, reformat, or "improve" anything not explicitly required by the task.
+- If a change seems helpful but is not in scope, do not include it.
+
+## RULE 4: DEPENDENCY ORDER
+- Plan changes in dependency order: types/interfaces before services, services before UI, shared before consumer.
+- If the task is not a code task (documentation, config, etc.), use phases appropriate to that task type instead. Do not force code-build phases onto non-code work.
+
+## RULE 5: SOURCE MATERIAL LOCKDOWN
+- Your only source of truth is the context provided in this prompt: the task spec, the app primer (if provided), and the source of truth index (if provided).
+- Do NOT reference files, modules, or patterns you "know" from training data but that are not in the provided context.
+- Do NOT invent setup commands, install steps, migration scripts, or deployment workflows unless the task spec explicitly requests them.
+- If the task spec says "Synthesize from provided context," that means use ONLY the provided context, not your own knowledge of similar projects.
+
+## RULE 6: STOP BEFORE LARGE CHANGES
+- If your plan requires changing more than 5 files, add a ## SCALE WARNING at the top listing every file and the reason it must change. The operator will review before the executor begins.
+- If your plan requires creating more than 2 new files, add a ## NEW FILES WARNING listing each new file path and its purpose.
 
 ---
 
 ### OUTPUT FORMAT
-Output ONLY the following two sections in this exact order. No preamble, no commentary, nothing else.
+Output ONLY the following sections in this exact order. No preamble, no conversational text, no summaries.
 
-1. Reproduce the # TASK SPECIFICATION section from the context above — **verbatim, unchanged**. Do not rewrite, summarize, or add to it.
+**Section 1:** Reproduce the # TASK SPECIFICATION from the context above — verbatim, unchanged. Do not rewrite, summarize, or add to it.
 
-2. Then output the planner phases:
+**Section 2:** Output the planner phases as # PLANNER OUTPUT.
 
-# PLANNER OUTPUT
+Choose phases appropriate to the task type:
 
-**Phase 1: Types & State (The Foundation)**
-* [ ] ...
-**Phase 2: Backend & Services (The Logic)**
-* [ ] ...
-**Phase 3: Frontend & UI (The Presentation)**
-* [ ] ...
-**Phase 4: Final Verification**
-* [ ] ...`;
+For code tasks (new features, bug fixes, refactors):
+* **Phase 1: Types & Interfaces** — type definitions, interface changes, shared constants
+* **Phase 2: Services & Logic** — backend services, IPC handlers, data layer
+* **Phase 3: UI & Integration** — components, routes, wiring
+* **Phase 4: Verification** — confirm scope respected, must-preserve intact, no out-of-scope files touched
+
+For documentation tasks (README, docs, knowledge base):
+* **Phase 1: Document Structure** — outline, section order, file paths
+* **Phase 2: Content Synthesis** — write content using ONLY provided context
+* **Phase 3: Cross-References** — links, index updates, related file updates
+* **Phase 4: Verification** — confirm no invented content, all sources from provided context
+
+For mixed tasks, combine phases as needed but always end with Verification.
+
+Each phase must contain a checklist of specific actions. Each checklist item must be a checkbox line:
+* [ ] In \\\`<exact-file-path>\\\`: <exact action to take>
+
+Do not include prose paragraphs inside phases. Do not include code snippets or diffs. Do not include examples. Only checklist items.
+
+If any checklist item cannot name a file, mark it: * [ ] [UNKNOWN: <what is needed>]
+
+**Section 3 (only if needed):** ## BLOCKING UNKNOWNS — list facts required to complete the plan that are not in the provided context.
+
+**Section 4 (only if needed):** ## SCALE WARNING — list all files to be changed if more than 5, or ## NEW FILES WARNING if creating more than 2 new files.`;
 
   private fileStore: FileStore;
   private taskService?: TaskService;
@@ -49,14 +108,18 @@ Output ONLY the following two sections in this exact order. No preamble, no comm
     this.taskService = taskService;
   }
 
-  private async getRunsBasePath(projectId: string): Promise<string> {
-    try {
-      const settings = await this.fileStore.readJSON<{ hubPath?: string }>('system/settings.json');
-      if (settings?.hubPath?.trim()) {
-        return path.join(settings.hubPath.trim(), 'runs', projectId);
-      }
-    } catch { /* fall back to workspace */ }
-    return this.fileStore.resolvePath(`workspace/projects/${projectId}/runs`);
+  private buildPrecedenceBlock(): string {
+    return `# AUTHORITY HIERARCHY — CONFLICT RESOLUTION
+
+If any two sections contradict, resolve by this precedence (1 = highest):
+
+1. OUTPUT LOCATION — run ID, task ID, output path, 5 artifact filenames are absolute and immutable
+2. TASK SPECIFICATION — title, objective, scope, out-of-scope, must-preserve define the mission
+3. Out-of-scope + Must-preserve — these are hard constraints, never overridden by planner or context
+4. STEP: IMPLEMENT phases — the execution structure you must follow
+5. PLANNER OUTPUT — the file-level plan; subordinate to task spec if they conflict
+6. SOURCE OF TRUTH / APP PRIMER — codebase context; informational, not authoritative over task spec
+7. GLOBAL RULES / MASTER PROMPT — behavioral defaults; lowest priority`;
   }
 
   async compile(projectId: string, taskId: string, step: PromptStep, mode: AgentMode): Promise<CompiledPrompt> {
@@ -179,60 +242,14 @@ IMPORTANT: Your job_result.json MUST include these two fields exactly as shown:
     const compiledText = this.stripModeReferences(rawText);
     const tokenEstimate = Math.ceil(compiledText.length / 4);
 
-    // Save the compiled prompt to disk so it can be viewed alongside the run later
+    // Save the compiled prompt to disk so it can be viewed alongside the run later.
+    // No placeholder run.meta.json is created here — creating one for every compile
+    // floods run history with phantom entries every time the user tweaks a prompt.
+    // The real run.meta.json is written by the watcher when actual artifacts arrive.
     const promptPath = `workspace/projects/${projectId}/tasks/${taskId}/prompts/PROMPT-${runId}.md`;
     try {
       await this.fileStore.writeMarkdown(promptPath, compiledText);
     } catch { /* non-fatal — prompt history is best-effort */ }
-
-    const runsBasePath = await this.getRunsBasePath(projectId);
-    const now = new Date().toISOString();
-    const placeholderTimeline: RunTimelineEntry[] = [{
-      id: 'timeline-' + crypto.randomUUID().slice(0, 8),
-      timestamp: now,
-      type: 'prompt_compiled',
-      title: 'Prompt Compiled',
-      content: `Prompt saved at ${promptPath}`,
-      metadata: {
-        step,
-        mode,
-        promptPath,
-      },
-    }];
-
-    const placeholderRun: Run = {
-      id: runId,
-      projectId,
-      taskId,
-      activeRepoId: taskSpec?.activeRepoId || 'UNKNOWN',
-      agentId: step, // step replaces agentId — stored as run identity marker
-      tool: 'command-and-conquer',
-      model: step,
-      mode,
-      promptPath,
-      artifactPaths: [],
-      status: 'importing' as RunStatus,
-      summary: 'Prompt compiled; awaiting AI run import.',
-      risks: [],
-      validation: [],
-      changedFiles: [],
-      commitHash: null,
-      timeline: placeholderTimeline,
-      createdAt: now,
-      updatedAt: now,
-    };
-
-    try {
-      const placeholderMetaPath = path.join(runsBasePath, runId, 'run.meta.json');
-      await fs.mkdir(path.dirname(placeholderMetaPath), { recursive: true });
-      await fs.writeFile(placeholderMetaPath, JSON.stringify(placeholderRun, null, 2), 'utf8');
-    } catch { /* non-fatal — placeholder run is best-effort */ }
-
-    if (this.taskService) {
-      try {
-        await this.taskService.linkRunToTask(projectId, taskId, runId);
-      } catch { /* non-fatal */ }
-    }
 
     return {
       id: 'COMP-' + crypto.randomUUID().slice(0, 8),
@@ -301,13 +318,6 @@ IMPORTANT: Your job_result.json MUST include these two fields exactly as shown:
     taskId: string,
     architectOutput: string
   ): Promise<CompiledPrompt> {
-    // Strip any template echo or preamble GPT-5.4 might have included.
-    // Only keep content from # TASK SPECIFICATION onward — that's the architect's actual plan.
-    const taskSpecMarker = architectOutput.indexOf('# TASK SPECIFICATION');
-    const cleanedArchitectOutput = taskSpecMarker !== -1
-      ? architectOutput.slice(taskSpecMarker).trim()
-      : architectOutput.trim();
-
     const runId = 'RUN-' + String(Date.now()).slice(-6);
 
     let absoluteOutputPath: string;
@@ -322,13 +332,37 @@ IMPORTANT: Your job_result.json MUST include these two fields exactly as shown:
       absoluteOutputPath = this.fileStore.resolvePath(`workspace/projects/${projectId}/runs/${runId}`);
     }
 
+    let taskSpecStr = '';
     let globalRules = '';
     let masterPrompt = '';
+    let projectPrimer = '';
+    let sourceOfTruth = '';
+    let repoContext = '';
+    let carryForward = '';
     let outputFormat = '';
 
-    try { globalRules  = await this.fileStore.readMarkdown('system/GLOBAL_RULES.md'); }  catch { /* missing */ }
-    try { masterPrompt = await this.fileStore.readMarkdown('system/MASTER_PROMPT.md'); } catch { /* missing */ }
-    try { outputFormat = await this.fileStore.readMarkdown('system/OUTPUT_FORMAT.md'); } catch { /* missing */ }
+    if (this.taskService) {
+      const taskSpec = await this.taskService.getTask(projectId, taskId);
+      if (taskSpec) taskSpecStr = this.taskSpecToMarkdown(taskSpec);
+    } else {
+      try {
+        const taskSpec = await this.fileStore.readJSON<Task>(`workspace/projects/${projectId}/tasks/${taskId}/task_spec.json`);
+        if (taskSpec) taskSpecStr = this.taskSpecToMarkdown(taskSpec);
+      } catch { /* missing */ }
+    }
+
+    try { globalRules    = await this.fileStore.readMarkdown('system/GLOBAL_RULES.md'); } catch { /* missing */ }
+    try { masterPrompt   = await this.fileStore.readMarkdown('system/MASTER_PROMPT.md'); } catch { /* missing */ }
+    try { projectPrimer  = await this.fileStore.readMarkdown(`workspace/projects/${projectId}/knowledge/docs/APP_PRIMER.md`); } catch { /* missing */ }
+    try { sourceOfTruth  = await this.fileStore.readMarkdown(`workspace/projects/${projectId}/knowledge/docs/SOURCE_OF_TRUTH_INDEX.md`); } catch { /* missing */ }
+    try { repoContext    = await this.fileStore.readMarkdown(`workspace/projects/${projectId}/knowledge/docs/REPO_CONTEXT.md`); } catch { /* missing â€” optional */ }
+    try { carryForward   = await this.fileStore.readMarkdown(`workspace/projects/${projectId}/tasks/${taskId}/carry_forward.md`); } catch { /* missing */ }
+    try { outputFormat   = await this.fileStore.readMarkdown('system/OUTPUT_FORMAT.md'); } catch { /* missing */ }
+
+    const parsedArchitect = this.parseArchitectDelta(architectOutput);
+    const patchedTaskSpec = parsedArchitect.valid
+      ? this.applyArchitectDeltaToTaskSpec(taskSpecStr || '', parsedArchitect)
+      : (taskSpecStr || '');
 
     const outputLocationBlock = `# OUTPUT LOCATION — REQUIRED
 
@@ -359,10 +393,14 @@ IMPORTANT: Your job_result.json MUST include these two fields exactly as shown:
 \`\`\``;
 
     const sections: string[] = [];
-    sections.push(cleanedArchitectOutput);
+    if (patchedTaskSpec) sections.push(patchedTaskSpec);
+    if (carryForward) sections.push(carryForward);
 
     if (globalRules)  sections.push(globalRules);
-    if (masterPrompt)  sections.push(masterPrompt + `\n\n**CURRENT AGENT MODE:** MAX`);
+    if (masterPrompt) sections.push(masterPrompt + `\n\n**CURRENT AGENT MODE:** MAX`);
+    if (projectPrimer) sections.push(projectPrimer);
+    if (sourceOfTruth) sections.push(sourceOfTruth);
+    if (repoContext) sections.push(repoContext);
     if (outputFormat)  sections.push(outputFormat);
 
     const stepInstruction = this.buildStepInstruction('implement', true);
@@ -378,54 +416,9 @@ IMPORTANT: Your job_result.json MUST include these two fields exactly as shown:
       await this.fileStore.writeMarkdown(promptPath, compiledText);
     } catch { /* non-fatal */ }
 
-    const runsBasePath = await this.getRunsBasePath(projectId);
-    const now = new Date().toISOString();
-    const placeholderTimeline: RunTimelineEntry[] = [{
-      id: 'timeline-' + crypto.randomUUID().slice(0, 8),
-      timestamp: now,
-      type: 'prompt_compiled',
-      title: 'Prompt Compiled',
-      content: `Prompt saved at ${promptPath}`,
-      metadata: {
-        step: 'implement',
-        mode: 'MAX',
-        promptPath,
-      },
-    }];
-
-    const placeholderRun: Run = {
-      id: runId,
-      projectId,
-      taskId,
-      activeRepoId: 'UNKNOWN',
-      agentId: 'implement',
-      tool: 'command-and-conquer',
-      model: 'implement',
-      mode: 'MAX',
-      promptPath,
-      artifactPaths: [],
-      status: 'importing' as RunStatus,
-      summary: 'Architect prompt compiled; awaiting AI run import.',
-      risks: [],
-      validation: [],
-      changedFiles: [],
-      commitHash: null,
-      timeline: placeholderTimeline,
-      createdAt: now,
-      updatedAt: now,
-    };
-
-    try {
-      const placeholderMetaPath = path.join(runsBasePath, runId, 'run.meta.json');
-      await fs.mkdir(path.dirname(placeholderMetaPath), { recursive: true });
-      await fs.writeFile(placeholderMetaPath, JSON.stringify(placeholderRun, null, 2), 'utf8');
-    } catch { /* non-fatal */ }
-
-    if (this.taskService) {
-      try {
-        await this.taskService.linkRunToTask(projectId, taskId, runId);
-      } catch { /* non-fatal */ }
-    }
+    // No placeholder run.meta.json is created here — creating one for every compile
+    // floods run history with phantom entries every time the user tweaks a prompt.
+    // The real run.meta.json is written by the watcher when actual artifacts arrive.
 
     return {
       id: 'COMP-' + crypto.randomUUID().slice(0, 8),
@@ -440,6 +433,341 @@ IMPORTANT: Your job_result.json MUST include these two fields exactly as shown:
       pendingRunId: runId,
       promptPath,
     } as CompiledPrompt & { pendingRunId: string; promptPath: string };
+  }
+
+  private parseArchitectDelta(architectOutput: string): ParsedArchitectDelta {
+    const warnings: string[] = [];
+    const invalidReasons: string[] = [];
+    const unwrapped = this.unwrapSingleFencedCodeBlock(architectOutput);
+    const lines = unwrapped.split(/\r?\n/);
+
+    const parsed: ParsedArchitectDelta = {
+      level: 'UNKNOWN',
+      reason: '',
+      enhancements: '',
+      removeBlock: '',
+      replaceBlock: '',
+      addBlock: '',
+      filePlanBlock: '',
+      coderGuardrailsBlock: '',
+      blockersBlock: '',
+      warnings,
+      invalidReasons,
+      valid: true,
+    };
+
+    let current:
+      | 'enhancements'
+      | 'reason'
+      | 'removeBlock'
+      | 'replaceBlock'
+      | 'addBlock'
+      | 'filePlanBlock'
+      | 'coderGuardrailsBlock'
+      | 'blockersBlock'
+      | '' = '';
+    let buffer: string[] = [];
+
+    const flush = () => {
+      if (!current) return;
+      (parsed as any)[current] = buffer.join('\n').trim();
+      buffer = [];
+      current = '';
+    };
+
+    const startBlock = (key: typeof current, inlineValue: string) => {
+      flush();
+      current = key;
+      if (inlineValue) buffer.push(inlineValue);
+    };
+
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (trimmed === '') {
+        if (current) buffer.push(line);
+        continue;
+      }
+
+      const levelMatch = trimmed.match(/^===\s*LEVEL:\s*(FULL|LIGHTWEIGHT|SKELETON)\s*===$/i);
+      if (levelMatch) {
+        flush();
+        parsed.level = levelMatch[1].toUpperCase() as ParsedArchitectDelta['level'];
+        continue;
+      }
+
+      const enhMatch = trimmed.match(/^Enhancements:\s*(.*)$/i);
+      if (enhMatch) {
+        startBlock('enhancements', enhMatch[1]);
+        continue;
+      }
+
+      const reasonMatch = trimmed.match(/^Reason:\s*(.*)$/i);
+      if (reasonMatch) {
+        startBlock('reason', reasonMatch[1]);
+        continue;
+      }
+
+      const removeMatch = trimmed.match(/^---REMOVE---\s*(.*)$/i);
+      if (removeMatch) {
+        startBlock('removeBlock', removeMatch[1]);
+        continue;
+      }
+
+      const replaceMatch = trimmed.match(/^---REPLACE---\s*(.*)$/i);
+      if (replaceMatch) {
+        startBlock('replaceBlock', replaceMatch[1]);
+        continue;
+      }
+
+      const addMatch = trimmed.match(/^---ADD---\s*(.*)$/i);
+      if (addMatch) {
+        startBlock('addBlock', addMatch[1]);
+        continue;
+      }
+
+      const filePlanMatch = trimmed.match(/^---FILE_PLAN---\s*(.*)$/i);
+      if (filePlanMatch) {
+        startBlock('filePlanBlock', filePlanMatch[1]);
+        continue;
+      }
+
+      const guardrailsMatch = trimmed.match(/^---CODER_GUARDRAILS---\s*(.*)$/i);
+      if (guardrailsMatch) {
+        startBlock('coderGuardrailsBlock', guardrailsMatch[1]);
+        continue;
+      }
+
+      const blockersMatch = trimmed.match(/^---BLOCKERS---\s*(.*)$/i);
+      if (blockersMatch) {
+        startBlock('blockersBlock', blockersMatch[1]);
+        continue;
+      }
+
+      if (current) {
+        buffer.push(line);
+      } else {
+        this.invalidateParsedArchitectDelta(parsed, `Unexpected content outside delta blocks: "${trimmed}"`);
+      }
+    }
+
+    flush();
+
+    if (!parsed.enhancements) warnings.push('Missing or empty Enhancements section');
+    if (!parsed.reason) warnings.push('Missing or empty Reason section');
+    if (parsed.level === 'UNKNOWN') warnings.push('Missing LEVEL section');
+    if (!parsed.removeBlock) warnings.push('Missing REMOVE block');
+    if (!parsed.replaceBlock) warnings.push('Missing REPLACE block');
+    if (!parsed.addBlock) warnings.push('Missing ADD block');
+    if (!parsed.filePlanBlock) warnings.push('Missing FILE_PLAN block');
+    if (!parsed.coderGuardrailsBlock) warnings.push('Missing CODER_GUARDRAILS block');
+
+    this.validateAddBlock(parsed);
+
+    parsed.valid =
+      parsed.invalidReasons.length === 0 &&
+      parsed.level !== 'UNKNOWN' &&
+      !!parsed.enhancements &&
+      !!parsed.reason &&
+      !!parsed.removeBlock &&
+      !!parsed.replaceBlock &&
+      !!parsed.addBlock &&
+      !!parsed.filePlanBlock &&
+      !!parsed.coderGuardrailsBlock;
+
+    return parsed;
+  }
+
+  private unwrapSingleFencedCodeBlock(text: string): string {
+    const trimmed = text.trim();
+    const match = trimmed.match(/^```[^\r\n`]*\r?\n([\s\S]*?)\r?\n```\s*$/);
+    return match ? match[1].trim() : trimmed;
+  }
+
+  private applyArchitectDeltaToTaskSpec(taskSpecText: string, parsed: ParsedArchitectDelta): string {
+    let text = taskSpecText;
+    text = this.applyRemoveEntries(text, parsed);
+    text = this.applyReplaceEntries(text, parsed);
+    text = this.applyAddEntries(text, parsed);
+    return text;
+  }
+
+  private applyRemoveEntries(text: string, parsed: ParsedArchitectDelta): string {
+    const entries = this.parseLineEntries(parsed.removeBlock);
+    if (entries.length === 0) return text;
+
+    const lines = text.split(/\r?\n/);
+    for (const entry of entries) {
+      if (this.isExplicitNone(entry)) continue;
+      const target = entry.trim();
+      const idx = lines.findIndex(line => line.trim() === target);
+      if (idx === -1) {
+        parsed.warnings.push(`REMOVE entry not found: "${target}"`);
+        continue;
+      }
+      lines.splice(idx, 1);
+    }
+    return lines.join('\n');
+  }
+
+  private applyReplaceEntries(text: string, parsed: ParsedArchitectDelta): string {
+    const entries = this.parseLineEntries(parsed.replaceBlock);
+    if (entries.length === 0) return text;
+
+    const lines = text.split(/\r?\n/);
+    for (const entry of entries) {
+      if (this.isExplicitNone(entry)) continue;
+      const match = entry.match(/^(.*?)(?:\s*=>\s*)(.*)$/);
+      if (!match) {
+        parsed.warnings.push(`REPLACE entry is not in old => new format: "${entry}"`);
+        continue;
+      }
+      const oldText = match[1].trim();
+      const newText = match[2].trim();
+      const idx = lines.findIndex(line => line.trim() === oldText);
+      if (idx === -1) {
+        parsed.warnings.push(`REPLACE target not found: "${oldText}"`);
+        continue;
+      }
+      lines[idx] = newText;
+    }
+    return lines.join('\n');
+  }
+
+  private applyAddEntries(text: string, parsed: ParsedArchitectDelta): string {
+    const entries = this.parseLineEntries(parsed.addBlock);
+    if (entries.length === 0) return text;
+
+    let working = text;
+    for (const entry of entries) {
+      if (this.isExplicitNone(entry)) continue;
+      const match = this.parseAddEntry(entry);
+      if (!match) {
+        this.invalidateParsedArchitectDelta(parsed, `ADD entry has invalid syntax: "${entry}"`);
+        continue;
+      }
+      const result = this.insertIntoCanonicalSection(working, match.sectionName, match.value);
+      working = result.text;
+      if (!result.applied) {
+        parsed.warnings.push(`ADD target section missing: "${match.sectionName}"`);
+      }
+    }
+    return working;
+  }
+
+  private parseLineEntries(block: string): string[] {
+    if (!block) return [];
+    return block.split(/\r?\n/).map(line => line.trim()).filter(Boolean);
+  }
+
+  private validateAddBlock(parsed: ParsedArchitectDelta): void {
+    for (const entry of this.parseLineEntries(parsed.addBlock)) {
+      if (this.isExplicitNone(entry)) continue;
+      if (!this.parseAddEntry(entry)) {
+        this.invalidateParsedArchitectDelta(parsed, `ADD entry has invalid syntax: "${entry}"`);
+      }
+    }
+  }
+
+  private parseAddEntry(entry: string): { sectionName: string; value: string } | null {
+    const match = entry.match(/^(OBJECTIVE|SCOPE|OUT OF SCOPE|MUST PRESERVE|KNOWN FACTS):\s*(.+)$/i);
+    if (!match) return null;
+    return {
+      sectionName: match[1].toUpperCase(),
+      value: match[2].trim(),
+    };
+  }
+
+  private invalidateParsedArchitectDelta(parsed: ParsedArchitectDelta, reason: string): void {
+    parsed.warnings.push(reason);
+    parsed.invalidReasons.push(reason);
+    parsed.valid = false;
+  }
+
+  private isExplicitNone(value: string): boolean {
+    return value.trim().toUpperCase() === 'NONE';
+  }
+
+  private insertIntoCanonicalSection(text: string, sectionName: string, value: string): { text: string; applied: boolean } {
+    const headingMap: Record<string, string> = {
+      OBJECTIVE: 'Objective',
+      SCOPE: 'Scope',
+      'OUT OF SCOPE': 'Out of Scope',
+      'MUST PRESERVE': 'Must Preserve',
+      'KNOWN FACTS': 'Known Facts',
+    };
+
+    const heading = headingMap[sectionName];
+    if (!heading) return { text, applied: false };
+
+    const lines = text.split(/\r?\n/);
+    const headingIdx = lines.findIndex(line => new RegExp(`^##\\s+${heading}\\s*$`, 'i').test(line.trim()));
+    if (headingIdx === -1) return { text, applied: false };
+
+    const nextHeadingRelative = lines.slice(headingIdx + 1).findIndex(line => /^##\s+/.test(line.trim()));
+    const insertAt = nextHeadingRelative === -1 ? lines.length : headingIdx + 1 + nextHeadingRelative;
+
+    const currentBody = lines.slice(headingIdx + 1, insertAt).join('\n').trim();
+    const mergedBody = this.mergeCanonicalSectionBody(sectionName, currentBody, value);
+    if (mergedBody === currentBody) {
+      return { text, applied: true };
+    }
+
+    const rebuilt = [
+      ...lines.slice(0, headingIdx + 1),
+      ...(mergedBody ? mergedBody.split(/\r?\n/) : []),
+      ...lines.slice(insertAt),
+    ].join('\n');
+    return { text: rebuilt, applied: true };
+  }
+
+  private mergeCanonicalSectionBody(sectionName: string, currentBody: string, incomingValue: string): string {
+    if (sectionName === 'OBJECTIVE') {
+      if (!currentBody) return incomingValue.trim();
+      if (this.isNearDuplicate(currentBody, incomingValue)) return currentBody;
+      return `${currentBody}\n\n${incomingValue.trim()}`;
+    }
+
+    const existingItems = this.splitComparableItems(currentBody);
+    const incomingItems = this.splitComparableItems(incomingValue);
+    const seen = new Set(existingItems.map(item => this.normalizeComparableText(item)));
+    const merged: string[] = [...existingItems];
+
+    for (const item of incomingItems) {
+      const normalized = this.normalizeComparableText(item);
+      if (!normalized || seen.has(normalized)) continue;
+      seen.add(normalized);
+      merged.push(item.trim());
+    }
+
+    return merged.join('\n').trim();
+  }
+
+  private splitComparableItems(text: string): string[] {
+    return text
+      .split(/\r?\n/)
+      .map(line => line.replace(/^[\s>*•\-\d.)]+/, '').trim())
+      .filter(Boolean);
+  }
+
+  private normalizeComparableText(text: string): string {
+    return text.trim().replace(/\s+/g, ' ').toLowerCase();
+  }
+
+  private isNearDuplicate(existingText: string, incomingText: string): boolean {
+    const existing = this.normalizeComparableText(existingText);
+    const incoming = this.normalizeComparableText(incomingText);
+    if (!existing || !incoming) return false;
+    if (existing === incoming) return true;
+    if (existing.includes(incoming) || incoming.includes(existing)) return true;
+
+    const existingTokens = new Set(existing.split(' ').filter(Boolean));
+    const incomingTokens = new Set(incoming.split(' ').filter(Boolean));
+    let common = 0;
+    for (const token of incomingTokens) {
+      if (existingTokens.has(token)) common += 1;
+    }
+    const union = new Set([...existingTokens, ...incomingTokens]).size || 1;
+    return common / union >= 0.8;
   }
 
   /**
@@ -501,6 +829,7 @@ Work through your Phase 1 task list item by item:
 - [ ] Re-read every Must Preserve item from the task spec — confirm each one still holds
 - [ ] Verify no out-of-scope file was modified
 - [ ] Check for obvious type errors or broken imports
+- [ ] Rebuild the app after changes and check for obvious build errors
 
 ## Phase 4: Write Artifacts
 Write all 5 files to the exact output path in the OUTPUT LOCATION section:

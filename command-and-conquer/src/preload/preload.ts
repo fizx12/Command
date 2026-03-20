@@ -16,6 +16,7 @@ contextBridge.exposeInMainWorld('api', {
     delete: (id: string) => ipcRenderer.invoke('projects:delete', id),
     listRepos: (projectId: string) => ipcRenderer.invoke('projects:listRepos', projectId),
     addRepo: (data: CreateRepoInput) => ipcRenderer.invoke('projects:addRepo', data),
+    buildFullRepoContext: (projectId: string) => ipcRenderer.invoke('projects:build-full-repo-context', projectId),
   },
   tasks: {
     list: (projectId: string) => ipcRenderer.invoke('tasks:list', projectId),
@@ -71,8 +72,13 @@ contextBridge.exposeInMainWorld('api', {
   },
   system: {
     getHealth: (projectId: string) => ipcRenderer.invoke('system:getHealth', projectId),
+    openFolder: (folderPath: string) => ipcRenderer.invoke('system:open-folder', folderPath),
   },
   onRunAutoImported: (callback: (payload: Record<string, unknown>) => void) => {
-    ipcRenderer.on('run:auto-imported', (_event, payload) => callback(payload));
+    const listener = (_event: unknown, payload: Record<string, unknown>) => callback(payload);
+    ipcRenderer.on('run:auto-imported', listener);
+    return () => {
+      ipcRenderer.off('run:auto-imported', listener);
+    };
   },
 });
