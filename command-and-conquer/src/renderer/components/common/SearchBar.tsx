@@ -1,4 +1,5 @@
 import React from 'react';
+import { tooltipProps } from '../../utils/tooltips';
 
 interface SearchBarProps {
   value: string;
@@ -28,6 +29,7 @@ const SearchBar: React.FC<SearchBarProps> = ({
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
+        {...tooltipProps(placeholder)}
         className="bg-transparent border-none outline-none text-text-primary placeholder:text-text-secondary w-full text-sm"
       />
     </div>

@@ -26,7 +26,7 @@ const ProjectDetail: React.FC = () => {
   const getActiveTab = () => {
     const path = location.pathname;
     if (path.endsWith('/tasks')) return 'tasks';
-    if (path.endsWith('/prompt-builder')) return 'prompt-builder';
+    if (path.endsWith('/prompt-generator')) return 'prompt-generator';
     if (path.endsWith('/runs')) return 'runs';
     if (path.endsWith('/knowledge')) return 'knowledge';
     if (path.endsWith('/agents')) return 'agents';
@@ -158,7 +158,7 @@ const ProjectDetail: React.FC = () => {
   const tabs = [
     { id: 'overview',        label: 'Overview',        path: `/projects/${projectId}` },
     { id: 'tasks',           label: 'Tasks',           path: `/projects/${projectId}/tasks` },
-    { id: 'prompt-builder',  label: 'Prompt Builder',  path: `/projects/${projectId}/prompt-builder` },
+    { id: 'prompt-generator',  label: 'Prompt Generator',  path: `/projects/${projectId}/prompt-generator` },
     { id: 'runs',            label: 'Runs',            path: `/projects/${projectId}/runs` },
     { id: 'knowledge',       label: 'Knowledge',       path: `/projects/${projectId}/knowledge` },
     { id: 'agents',          label: 'Agents',          path: `/projects/${projectId}/agents` },

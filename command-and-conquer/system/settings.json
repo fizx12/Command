@@ -1,10 +1,19 @@
 {
   "obsidianVaultPath": "",
-  "operationalPath": "",
+  "hubPath": "",
   "watchFolders": [
     "C:\\Users\\G\\Documents"
   ],
   "defaultModel": "gemini-flash",
   "theme": "dark",
-  "operationalFolderPath": ""
+  "flashModel": "gpt-4o-mini",
+  "proModel": "gpt-5.4",
+  "geminiEnabled": false,
+  "geminiFlashModel": "gemini-2.0-flash",
+  "geminiProModel": "gemini-1.5-pro",
+  "operationalPath": "",
+  "operationalFolderPath": "",
+  "taskOptimizerModel": "gpt-5.4-mini",
+  "bootstrapModel": "gpt-5-nano",
+  "revisionModel": "gpt-4o-mini"
 }

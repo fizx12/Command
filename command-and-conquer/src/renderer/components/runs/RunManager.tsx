@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import type { Run } from '../../../main/types';
 import { syncRuns } from '../../utils/syncRuns';
+import { tooltipProps } from '../../utils/tooltips';
 
 /**
  * Manages runs strictly as children of a specific Task.
@@ -44,6 +45,7 @@ export const RunManager: React.FC<RunManagerProps> = ({ taskId, projectId }) => 
           onClick={refresh}
           disabled={loading}
           className="px-4 py-2 bg-accent text-white rounded-lg font-bold text-xs shadow-lg shadow-accent/20 hover:opacity-90 disabled:opacity-50 transition-all"
+          {...tooltipProps('Refresh task runs')}
         >
           {loading ? 'Refreshing...' : 'Force'}
         </button>

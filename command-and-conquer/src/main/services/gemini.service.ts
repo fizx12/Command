@@ -55,14 +55,16 @@ export class GeminiService {
     apiKey: string,
     tier: ModelTier = 'flash',
     maxTokens?: number,
-    trace?: GenerateTraceOptions
+    trace?: GenerateTraceOptions,
+    modelOverride?: string
   ): Promise<string> {
     const key = (apiKey?.trim() || this.settings.openaiApiKey?.trim() || '').trim();
     if (!key) throw new Error('OpenAI API key is required. Add it in Settings → OpenAI API Key.');
 
-    const model = tier === 'pro'
-      ? (this.settings.proModel || 'gpt-5.4')
-      : (this.settings.flashModel || 'gpt-4o-mini');
+    const model = (modelOverride?.trim())
+      || (tier === 'pro'
+        ? (this.settings.proModel || 'gpt-5.4')
+        : (this.settings.flashModel || 'gpt-4o-mini'));
 
     const outputTokens = maxTokens ?? (tier === 'pro' ? 8192 : 4096);
 

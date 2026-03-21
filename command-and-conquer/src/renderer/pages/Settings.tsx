@@ -10,13 +10,56 @@ interface SettingsData {
   openaiApiKey: string;
   flashModel: string;
   proModel: string;
+  taskOptimizerModel: string;
+  bootstrapModel: string;
+  revisionModel: string;
   geminiEnabled: boolean;
   geminiApiKey: string;
   geminiFlashModel: string;
   geminiProModel: string;
 }
 
+interface ModelOption {
+  id: string;
+  name: string;
+  shortUse: string;
+  longUse: string;
+}
+
 type KeyTestState = 'idle' | 'testing' | 'ok' | 'error';
+
+const OPTIMIZER_MODELS: ModelOption[] = [
+  {
+    id: 'gpt-5.4-nano',
+    name: 'GPT-5.4 Nano',
+    shortUse: 'Cheapest for scanning, tagging, and doc cleanup.',
+    longUse: 'Use when the task is mostly extraction, organization, or lightweight rewriting with very low reasoning demand.',
+  },
+  {
+    id: 'gpt-4o-mini',
+    name: 'GPT-4o Mini',
+    shortUse: 'Balanced cheap default for routine optimizer work.',
+    longUse: 'Good for simple prompt tightening, small summaries, and predictable structured output.',
+  },
+  {
+    id: 'gpt-5.4-mini',
+    name: 'GPT-5.4 Mini',
+    shortUse: 'Stronger reasoning while staying cost-conscious.',
+    longUse: 'Use for light refactors, sharper prompt optimization, and tasks that need better judgment without paying for a larger model.',
+  },
+  {
+    id: 'gpt-5.1-codex-mini',
+    name: 'GPT-5.1 Codex Mini',
+    shortUse: 'Best cheap code-first option for repo work.',
+    longUse: 'Use when the optimizer needs to understand code structure, file relationships, or produce developer-oriented guidance.',
+  },
+  {
+    id: 'gpt-5-nano',
+    name: 'GPT-5 Nano',
+    shortUse: 'Ultra-cheap for the simplest scans and labels.',
+    longUse: 'Best when speed and low cost matter more than reasoning depth and the task is already very constrained.',
+  },
+];
 
 const Settings: React.FC = () => {
   const [loading, setLoading] = useState(true);
@@ -30,6 +73,10 @@ const Settings: React.FC = () => {
   const [openaiApiKey, setOpenaiApiKey] = useState('');
   const [flashModel, setFlashModel] = useState('gpt-4o-mini');
   const [proModel, setProModel] = useState('gpt-5.4');
+  const [taskOptimizerModel, setTaskOptimizerModel] = useState('gpt-4o-mini');
+  const [bootstrapModel, setBootstrapModel] = useState('gpt-5-nano');
+  const [revisionModel, setRevisionModel] = useState('gpt-4o-mini');
+  const [modelInfoKey, setModelInfoKey] = useState<string | null>(null);
   const [showOpenaiKey, setShowOpenaiKey] = useState(false);
   const [openaiTestState, setOpenaiTestState] = useState<KeyTestState>('idle');
   const [openaiTestError, setOpenaiTestError] = useState('');
@@ -51,6 +98,9 @@ const Settings: React.FC = () => {
         setOpenaiApiKey(s.openaiApiKey || '');
         setFlashModel(s.flashModel || 'gpt-4o-mini');
         setProModel(s.proModel || 'gpt-5.4');
+        setTaskOptimizerModel(s.taskOptimizerModel || 'gpt-4o-mini');
+        setBootstrapModel(s.bootstrapModel || 'gpt-5-nano');
+        setRevisionModel(s.revisionModel || 'gpt-4o-mini');
         setGeminiEnabled(!!s.geminiEnabled);
         setGeminiApiKey(s.geminiApiKey || '');
         setGeminiFlashModel(s.geminiFlashModel || 'gemini-2.0-flash');
@@ -92,6 +142,7 @@ const Settings: React.FC = () => {
       await window.api.settings.update({
         obsidianVaultPath, hubPath, watchFolders,
         openaiApiKey, flashModel, proModel,
+        taskOptimizerModel, bootstrapModel, revisionModel,
         geminiEnabled, geminiApiKey, geminiFlashModel, geminiProModel,
         theme: 'dark',
       });
@@ -101,6 +152,72 @@ const Settings: React.FC = () => {
       setSaving(false);
     }
   };
+
+  const renderModelPicker = (
+    title: string,
+    description: string,
+    selectedModel: string,
+    setSelectedModel: (model: string) => void,
+    slot: string
+  ) => (
+    <div className="flex flex-col gap-2">
+      <div className="flex items-center justify-between gap-2">
+        <label className="text-xs font-bold text-text-secondary uppercase">
+          {title}
+          <span className="ml-1 font-normal normal-case text-text-secondary/60">{description}</span>
+        </label>
+        <button
+          type="button"
+          onClick={() => setModelInfoKey(modelInfoKey ? null : `${slot}:${selectedModel}`)}
+          className="inline-flex h-6 w-6 items-center justify-center rounded-full border border-surface-alt bg-surface-alt text-[11px] font-bold text-text-secondary hover:border-accent hover:text-accent transition-colors"
+          title="Show model guidance"
+          aria-label={`Show ${title} guidance`}
+        >
+          i
+        </button>
+      </div>
+      <div className="flex flex-col gap-2">
+        {OPTIMIZER_MODELS.map((model) => {
+          const active = selectedModel === model.id;
+          const expanded = modelInfoKey === `${slot}:${model.id}`;
+          return (
+            <div
+              key={`${slot}-${model.id}`}
+              className={`rounded-lg border p-3 transition-colors ${active ? 'border-accent bg-accent/10' : 'border-surface-alt bg-surface-alt/40'}`}
+            >
+              <div className="flex items-start justify-between gap-3">
+                <button
+                  type="button"
+                  onClick={() => setSelectedModel(model.id)}
+                  className="flex-1 text-left"
+                >
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono text-sm font-bold text-text-primary">{model.name}</span>
+                    {active && <span className="rounded-full bg-accent/20 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-accent">Selected</span>}
+                  </div>
+                  <p className="mt-1 text-[11px] text-text-secondary">{model.shortUse}</p>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setModelInfoKey(expanded ? null : `${slot}:${model.id}`)}
+                  className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-surface-alt bg-surface text-[11px] font-bold text-text-secondary hover:border-accent hover:text-accent transition-colors"
+                  title="Best use case"
+                  aria-label={`Best use case for ${model.name}`}
+                >
+                  i
+                </button>
+              </div>
+              {expanded && (
+                <p className="mt-2 text-[11px] leading-5 text-text-secondary">
+                  {model.longUse}
+                </p>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
 
   if (loading) {
     return (
@@ -171,12 +288,25 @@ const Settings: React.FC = () => {
                 <p className="text-[10px] text-text-secondary italic">Used for prompt tightening, bootstrap knowledge, and run evaluation.</p>
               </div>
 
-              {/* Model selectors */}
+              {/* Task-specific model selectors */}
+              <div className="flex flex-col gap-6">
+                <div className="flex flex-col gap-3">
+                  <h3 className="text-xs font-bold text-text-secondary uppercase tracking-widest">Task-Specific Models</h3>
+                  <p className="text-[10px] text-text-secondary italic">
+                    These settings control the task optimizer, revision tighten, and knowledge bootstrap paths.
+                  </p>
+                </div>
+                {renderModelPicker('Task Optimizer', 'task optimizer + tighten', taskOptimizerModel, setTaskOptimizerModel, 'task-optimizer')}
+                {renderModelPicker('Bootstrap Knowledge', 'repo scanning + doc synthesis', bootstrapModel, setBootstrapModel, 'bootstrap')}
+                {renderModelPicker('Revision Tighten', 'revision prompt tightening', revisionModel, setRevisionModel, 'revision')}
+              </div>
+
+              {/* Legacy prompt-gen / general model selectors */}
               <div className="grid grid-cols-2 gap-4">
                 <div className="flex flex-col gap-2">
                   <label className="text-xs font-bold text-text-secondary uppercase">
                     Flash Model
-                    <span className="ml-1 font-normal normal-case text-text-secondary/60">— cheap tasks</span>
+                    <span className="ml-1 font-normal normal-case text-text-secondary/60">- legacy prompt-gen tighten</span>
                   </label>
                   <select
                     value={flashModel}
@@ -187,12 +317,11 @@ const Settings: React.FC = () => {
                     <option value="gpt-5.4-mini">gpt-5.4-mini ($0.75/$4.50/M)</option>
                     <option value="gpt-4o">gpt-4o ($2.50/$10.00/M)</option>
                   </select>
-                  <p className="text-[10px] text-text-secondary italic">Used for: run evaluation, ping/key test, change summaries.</p>
                 </div>
                 <div className="flex flex-col gap-2">
                   <label className="text-xs font-bold text-text-secondary uppercase">
                     Pro Model
-                    <span className="ml-1 font-normal normal-case text-text-secondary/60">— smart tasks</span>
+                    <span className="ml-1 font-normal normal-case text-text-secondary/60">- smart tasks</span>
                   </label>
                   <select
                     value={proModel}
@@ -206,7 +335,6 @@ const Settings: React.FC = () => {
                   <p className="text-[10px] text-text-secondary italic">Used for: prompt tightening (delta), bootstrap knowledge.</p>
                 </div>
               </div>
-
               {/* Coder model cheat sheet */}
               <div className="bg-surface-alt/40 border border-surface-alt rounded-lg p-3">
                 <p className="text-[11px] font-bold text-text-primary mb-2">Which model to paste into for manual prompts:</p>

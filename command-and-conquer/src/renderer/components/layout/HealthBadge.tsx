@@ -1,4 +1,5 @@
 import React from 'react';
+import { tooltipProps } from '../../utils/tooltips';
 
 interface HealthBadgeProps {
   status: 'green' | 'yellow' | 'red';
@@ -35,7 +36,7 @@ const HealthBadge: React.FC<HealthBadgeProps> = ({
     <div className="inline-flex items-center gap-2">
       <div 
         className={`${circleSize} rounded-full ${getStatusColor()}`}
-        title={!showLabel ? getStatusLabel() : undefined}
+        {...(!showLabel ? tooltipProps(getStatusLabel()) : {})}
       />
       {showLabel && (
         <span className={`${size === 'sm' ? 'text-xs' : 'text-sm'} font-medium text-text-primary`}>

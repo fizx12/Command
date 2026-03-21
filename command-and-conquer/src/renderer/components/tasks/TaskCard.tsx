@@ -1,4 +1,5 @@
 import React from 'react';
+import { tooltipProps } from '../../utils/tooltips';
 
 interface TaskCardProps {
   id: string;
@@ -38,6 +39,7 @@ const TaskCard: React.FC<TaskCardProps> = ({
     <div
       onClick={onClick}
       className="bg-surface-alt rounded-lg p-4 cursor-pointer hover:ring-1 hover:ring-accent transition-all flex flex-col gap-3 group"
+      {...tooltipProps(`Open task: ${title}`)}
     >
       <div className="flex justify-between items-center">
         <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${getSizeBadgeClass()}`}>

@@ -1,4 +1,5 @@
 import React from 'react';
+import { tooltipProps } from '../../utils/tooltips';
 
 interface ConflictPanelProps {
   conflict: {
@@ -57,18 +58,21 @@ const ConflictPanel: React.FC<ConflictPanelProps> = ({ conflict, onResolve }) =>
             <button
               onClick={() => onResolve('acceptA')}
               className="px-4 py-2 bg-accent text-white rounded-lg text-sm font-medium hover:opacity-90 transition-opacity"
+              {...tooltipProps(`Accept version A for conflict ${conflict.id}`)}
             >
               Accept A
             </button>
             <button
               onClick={() => onResolve('acceptB')}
               className="px-4 py-2 bg-accent text-white rounded-lg text-sm font-medium hover:opacity-90 transition-opacity"
+              {...tooltipProps(`Accept version B for conflict ${conflict.id}`)}
             >
               Accept B
             </button>
             <button
               onClick={() => onResolve('manualMerge')}
               className="px-4 py-2 bg-surface-alt border border-text-secondary/30 text-text-primary rounded-lg text-sm font-medium hover:bg-surface transition-colors"
+              {...tooltipProps(`Open manual merge for conflict ${conflict.id}`)}
             >
               Manual Merge
             </button>

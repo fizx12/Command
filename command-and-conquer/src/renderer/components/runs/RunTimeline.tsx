@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { tooltipProps } from '../../utils/tooltips';
 
 type RunTimelineEventType =
   | 'imported'
@@ -119,6 +120,7 @@ function TimelineEntry({ entry, isLast }: { entry: RunTimelineEntry; isLast: boo
             <button
               onClick={() => setExpanded(e => !e)}
               className="text-[10px] text-text-secondary hover:text-text-primary transition-colors flex items-center gap-1"
+              {...tooltipProps(expanded ? 'Hide event details' : 'Show event details')}
             >
               <span>{expanded ? '▾' : '▸'}</span>
               <span>{expanded ? 'hide details' : 'details'}</span>

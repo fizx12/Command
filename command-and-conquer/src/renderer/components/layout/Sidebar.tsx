@@ -1,6 +1,7 @@
 import React from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useProject } from '../../hooks/useProjects';
+import { tooltipProps } from '../../utils/tooltips';
 
 interface SidebarProps {
   collapsed: boolean;
@@ -40,6 +41,7 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed, onToggle, activeProjectId 
     <NavLink
       to={to}
       end={end}
+      {...tooltipProps(label)}
       className={({ isActive }) =>
         `flex items-center gap-2.5 px-3 py-2 rounded-lg transition-colors overflow-hidden group ${
           isActive
@@ -69,7 +71,7 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed, onToggle, activeProjectId 
         <button
           onClick={onToggle}
           className="ml-auto p-1.5 rounded-lg hover:bg-surface-alt text-text-secondary transition-colors flex-shrink-0"
-          title={collapsed ? 'Expand' : 'Collapse'}
+          {...tooltipProps(collapsed ? 'Expand sidebar' : 'Collapse sidebar')}
         >
           <Icon d={Icons.menu} />
         </button>
@@ -90,13 +92,13 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed, onToggle, activeProjectId 
                   <button
                     onClick={() => navigate('/projects')}
                     className="text-text-secondary hover:text-text-primary transition-colors"
-                    title="All projects"
+                    {...tooltipProps('All projects')}
                   >
                     <Icon d={Icons.back} />
                   </button>
                   <span
                     className="text-xs font-bold text-text-secondary uppercase tracking-widest truncate"
-                    title={project?.name}
+                    {...tooltipProps(project?.name || 'Active project')}
                   >
                     {project?.name ?? '…'}
                   </span>
@@ -115,9 +117,9 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed, onToggle, activeProjectId 
               label="Tasks"
             />
             <NavItem
-              to={`/projects/${activeProjectId}/prompt-builder`}
+              to={`/projects/${activeProjectId}/prompt-generator`}
               icon={<Icon d={Icons.prompt} />}
-              label="Prompt Builder"
+              label="Prompt Generator"
             />
             <NavItem
               to={`/projects/${activeProjectId}/runs`}

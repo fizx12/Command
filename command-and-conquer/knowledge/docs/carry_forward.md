@@ -11,11 +11,11 @@ What looks solid:
 - Workspace-backed task/run model is consistent across planner docs, walkthrough docs, and sample workspace files
 - Existing task update/delete IPC already exists, so the app is beyond pure scaffolding
 
-What still feels rough or in-progress:
-- No automated tests
-- Actual source implementation files were not included in this audit, so many renderer/main details are only indirectly visible
-- Task UX is actively being revised, especially around edit-return flows and deletion consistency
-- Some workspace prompt artifacts show evolving system rules, which may mean backward compatibility issues when importing older runs
+- **COMPLETED**: Task UX reaches target stability:
+  - Reopen existing tasks via unified TaskEdit form
+  - Bidirectional navigation between Board and Prompt Generator with work-in-progress state preservation
+  - Consistent visibility for delete actions everywhere tasks appear
+  - Safe post-save/post-delete refresh behavior
 
 ## Watch Out For
 - **Filesystem is the real database**

@@ -1,4 +1,5 @@
 import React from 'react';
+import { tooltipProps } from '../../utils/tooltips';
 
 interface RunCardProps {
   id: string;
@@ -35,6 +36,7 @@ const RunCard: React.FC<RunCardProps> = ({
     <div
       onClick={onClick}
       className="bg-surface-alt rounded-lg p-4 cursor-pointer hover:ring-1 hover:ring-accent transition-all flex flex-col gap-3 group"
+      {...tooltipProps(`Open run ${id}`)}
     >
       <div className="flex justify-between items-start">
         <div className="flex flex-col gap-0.5">

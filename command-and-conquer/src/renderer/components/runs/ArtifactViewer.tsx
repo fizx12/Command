@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { tooltipProps } from '../../utils/tooltips';
 
 interface ArtifactViewerProps {
   artifacts: { name: string; content: string; type: 'json' | 'markdown' }[];
@@ -38,6 +39,7 @@ const ArtifactViewer: React.FC<ArtifactViewerProps> = ({ artifacts }) => {
                 ? 'border-accent text-accent bg-accent/5'
                 : 'border-transparent text-text-secondary hover:text-text-primary hover:bg-surface-alt/50'
             }`}
+            {...tooltipProps(`View ${artifact.name}`)}
           >
             {artifact.name}
           </button>

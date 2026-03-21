@@ -201,7 +201,7 @@ IMPORTANT: job_result.json MUST include:
     setTightening(true);
     setTightenError('');
     try {
-      const res = await window.api.gemini.tightenPrompt(revisionPrompt, apiKey);
+      const res = await window.api.gemini.tightenPrompt(revisionPrompt, apiKey, 'revision');
       if (res?.error) {
         setTightenError(res.message || 'Tighten failed');
       } else {
@@ -507,6 +507,12 @@ IMPORTANT: job_result.json MUST include:
             <div className="rounded-xl border border-surface-alt bg-surface-alt p-5">
               <h2 className="mb-4 text-sm font-bold text-text-secondary uppercase tracking-wider">Review Actions</h2>
               <div className="flex flex-col gap-3">
+                <button
+                  onClick={() => navigate(`/projects/${projectId}/prompt-generator?taskId=${taskId}`)}
+                  className="rounded-lg bg-accent/15 border border-accent/20 text-accent px-4 py-3 text-sm font-bold transition hover:bg-accent/30 flex items-center justify-center gap-2 border-dashed"
+                >
+                  ← Back to Prompt Generator
+                </button>
                 <button
                   onClick={handleEditTaskFields}
                   disabled={!task}

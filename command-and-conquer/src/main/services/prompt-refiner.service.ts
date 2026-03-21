@@ -23,13 +23,13 @@
   export class PromptRefinerService {
     constructor(private geminiService: GeminiService) {}
 
-    async refine(promptText: string, apiKey: string): Promise<{ refined: string; changeSummary: string }> {
+    async refine(promptText: string, apiKey: string, modelOverride?: string): Promise<{ refined: string; changeSummary: string }> {
       const sections = this.splitPrompt(promptText);
       const taskSections = sections.filter(s => !s.isStatic);
 
       if (taskSections.length === 0) {
         // Fallback: tighten whole prompt
-        return this.tightenWhole(promptText, apiKey, promptText);
+        return this.tightenWhole(promptText, apiKey, promptText, modelOverride);
       }
 
       const taskText = taskSections.map(s => s.content).join('\n\n---\n\n');
@@ -41,7 +41,8 @@
         apiKey,
         'flash',
         undefined,
-        trace
+        trace,
+        modelOverride
       );
 
       const parsed = this.parseOptimizerOutput(raw);
@@ -217,14 +218,15 @@
       return parts.join('\n\n---\n\n');
     }
 
-    private async tightenWhole(promptText: string, apiKey: string, traceSourceText: string): Promise<{ refined: string; changeSummary: string }> {
+    private async tightenWhole(promptText: string, apiKey: string, traceSourceText: string, modelOverride?: string): Promise<{ refined: string; changeSummary: string }> {
       const trace = this.buildTraceOptions(traceSourceText, 'prompt_optimizer_fallback');
       const refined = await this.geminiService.generate(
         `Tighten this AI coding prompt. Keep all technical details. Remove only vague language. Output only the improved prompt:\n\n${promptText}`,
         apiKey,
         'flash',
         undefined,
-        trace
+        trace,
+        modelOverride
       );
       return { refined: refined.trim(), changeSummary: 'Full prompt tightened with fallback parsing' };
     }

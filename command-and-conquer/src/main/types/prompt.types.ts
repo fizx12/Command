@@ -1,6 +1,9 @@
 import { EntityId } from './common.types';
 import { AgentMode, PromptStep } from './agent.types';
 
+/** Prompt task mode. */
+export type TaskMode = 'implement' | 'audit' | 'regression';
+
 /** Saved prompt configuration profile. */
 export interface PromptProfile {
   id: EntityId;

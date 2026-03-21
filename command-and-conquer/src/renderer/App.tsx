@@ -3,7 +3,7 @@ import { HashRouter, Routes, Route, Navigate, useLocation, useNavigate } from 'r
 
 import Projects from './pages/Projects';
 import TaskBoard from './pages/TaskBoard';
-import PromptBuilder from './pages/PromptBuilder';
+import PromptGenerator from './pages/PromptGenerator';
 import RunImporter from './pages/RunImporter';
 import ReviewPanel from './pages/ReviewPanel';
 import KnowledgeCenter from './pages/KnowledgeCenter';
@@ -117,7 +117,7 @@ function AppLayout() {
             <Route index element={<Navigate to="tasks" replace />} />
             <Route path="overview" element={<ProjectDetail />} />
             <Route path="tasks" element={<TaskBoard />} />
-            <Route path="prompt-builder" element={<PromptBuilder />} />
+            <Route path="prompt-generator" element={<PromptGenerator />} />
             <Route path="runs" element={<RunImporter />} />
             <Route path="review/:taskId" element={<ReviewPanel />} />
             <Route path="knowledge" element={<KnowledgeCenter />} />

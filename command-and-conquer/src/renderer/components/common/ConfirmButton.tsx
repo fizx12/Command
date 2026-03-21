@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { tooltipProps } from '../../utils/tooltips';
 
 interface ConfirmButtonProps {
   label: string;                        // e.g. "Delete"
@@ -51,6 +52,7 @@ const ConfirmButton: React.FC<ConfirmButtonProps> = ({
       disabled={disabled}
       onClick={handleClick}
       className={`px-4 py-2 rounded-lg font-medium transition-all ${getVariantClasses()}`}
+      {...tooltipProps(isConfirming ? confirmLabel : label)}
     >
       {isConfirming ? confirmLabel : label}
     </button>

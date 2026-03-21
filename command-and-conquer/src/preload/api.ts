@@ -46,18 +46,18 @@ export interface ElectronAPI {
     listAnchors: (projectId: string) => Promise<any>;
   };
   prompts: {
-    compile: (projectId: string, taskId: string, step: string) => Promise<any>;
-    preview: (projectId: string, taskId: string, step: string) => Promise<any>;
+    compile: (projectId: string, taskId: string, step: string, taskMode?: 'implement' | 'audit' | 'regression') => Promise<any>;
+    preview: (projectId: string, taskId: string, step: string, taskMode?: 'implement' | 'audit' | 'regression') => Promise<any>;
     save: (projectId: string, taskId: string, runId: string, text: string) => Promise<any>;
     fuseAnalysis: (originalPrompt: string, llmOutput: string, apiKey: string) => Promise<any>;
-    buildArchitect: (projectId: string, taskId: string) => Promise<any>;
+    buildArchitect: (projectId: string, taskId: string, targetCoder?: '5.4mini' | 'flash', taskMode?: 'implement' | 'audit' | 'regression') => Promise<any>;
     compileArchitect: (projectId: string, taskId: string, architectOutput: string) => Promise<any>;
   };
   gemini: {
     testKey: (apiKey: string) => Promise<any>;
     bootstrapKnowledge: (projectId: string, sourcePath: string, apiKey: string) => Promise<any>;
     sendToFlash: (projectId: string, taskId: string, step: string, apiKey: string) => Promise<any>;
-    tightenPrompt: (promptText: string, apiKey: string) => Promise<any>;
+    tightenPrompt: (promptText: string, apiKey: string, purpose?: 'prompt' | 'revision') => Promise<any>;
     generateRepoContext: (projectId: string, repoPath: string, apiKey: string) => Promise<any>;
     improveTask: (title: string, description: string, apiKey: string) => Promise<any>;
   };

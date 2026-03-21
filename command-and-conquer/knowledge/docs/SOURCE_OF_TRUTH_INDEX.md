@@ -13,10 +13,12 @@
 - `planner_output.md` — current implementation intent for task editing/deletion UX; best available map of renderer files under active change
 - `TEST_WALKTHROUGH.md` — end-to-end behavioral source of truth for expected user flows: project creation, task creation, prompt compilation, run import, and review
 - `src/renderer/hooks/useTasks.ts` — per planner notes, owns renderer-side task action helpers and refresh plumbing
-- `src/renderer/pages/TaskBoard.tsx` — per planner notes, primary task board and task field-entry surface
-- `src/renderer/pages/PromptBuilder.tsx` — per planner notes, owns prompt compilation flow and task selection behavior
-- `src/renderer/pages/ReviewPanel.tsx` — per planner notes, owns review-stage task interaction behavior
-- `src/renderer/components/common/ConfirmButton.tsx` — per planner notes, shared confirmation UX for destructive actions
+- `src/renderer/pages/TaskBoard.tsx` — primary task board and kanban surface; now uses unified TaskEdit component
+- `src/renderer/pages/PromptGenerator.tsx` — (formerly PromptBuilder.tsx) owns prompt compilation flow and task selection behavior; includes state persistence via revisionUtils
+- `src/renderer/pages/ReviewPanel.tsx` — owns review-stage task interaction behavior
+- `src/renderer/components/tasks/TaskEdit.tsx` — unified field-entry form for task creation and updates; includes AI-fill feature
+- `src/renderer/components/common/ConfirmButton.tsx` — shared confirmation UX for destructive actions
+- `src/renderer/utils/revisionUtils.ts` — state persistence logic for session-specific prompt generation
 - `workspace/projects/{projectId}/tasks/{taskId}/task_spec.json` — canonical persisted task record
 - `workspace/projects/{projectId}/runs/{runId}/job_result.json` — canonical imported run summary/status record
 - `workspace/projects/{projectId}/runs/{runId}/changed_files.json` — canonical changed-file manifest for review

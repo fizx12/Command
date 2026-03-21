@@ -37,7 +37,19 @@
       }
     },
     "commit_hash": { "type": "string" },
-    "created_at": { "type": "string" }
+    "created_at": { "type": "string" },
+    "planned_actions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["action", "status"],
+        "properties": {
+          "action": { "type": "string" },
+          "status": { "enum": ["completed", "skipped", "failed"] },
+          "reason": { "type": "string" }
+        }
+      }
+    }
   },
   "additionalProperties": true
 }

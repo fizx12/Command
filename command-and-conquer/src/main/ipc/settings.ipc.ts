@@ -45,6 +45,9 @@ const DEFAULT_SETTINGS = {
   openaiApiKey: '',
   flashModel: 'gpt-4o-mini',   // cheap/fast: evaluation, ping
   proModel: 'gpt-5.4',          // smart: tighten, bootstrap
+  taskOptimizerModel: 'gpt-4o-mini', // task optimizer / improve task copy
+  bootstrapModel: 'gpt-5-nano',      // knowledge bootstrap
+  revisionModel: 'gpt-4o-mini',      // revision prompt tighten
   // Gemini (disabled by default — kept for future use)
   geminiEnabled: false,
   geminiApiKey: '',

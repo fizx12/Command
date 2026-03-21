@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { tooltipProps } from '../../utils/tooltips';
 
 interface FreshnessIndicatorProps {
   staleFlag: boolean;
@@ -40,6 +41,7 @@ const FreshnessIndicator: React.FC<FreshnessIndicatorProps> = ({
           <button
             onClick={() => setIsExpanded(!isExpanded)}
             className="flex items-center gap-1.5 text-xs text-accent hover:underline"
+            {...tooltipProps(isExpanded ? 'Hide watched file patterns' : 'Show watched file patterns')}
           >
             <span>Watching: {watchFiles.length} file patterns</span>
             <svg

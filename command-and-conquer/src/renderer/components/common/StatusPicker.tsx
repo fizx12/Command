@@ -1,4 +1,5 @@
 import React from 'react';
+import { tooltipProps } from '../../utils/tooltips';
 
 interface StatusPickerProps {
   options: string[];                    // list of status labels
@@ -22,6 +23,7 @@ const StatusPicker: React.FC<StatusPickerProps> = ({ options, value, onChange, l
                 ? 'bg-accent text-white'
                 : 'bg-surface-alt text-text-secondary hover:bg-surface'
             }`}
+            {...tooltipProps(`Set status to ${option}`)}
           >
             {option}
           </button>

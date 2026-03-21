@@ -1,4 +1,5 @@
 import React from 'react';
+import { tooltipProps } from '../../utils/tooltips';
 
 interface SizeSelectorProps {
   value: 'Micro' | 'Standard' | 'Major';
@@ -51,6 +52,7 @@ const SizeSelector: React.FC<SizeSelectorProps> = ({ value, onChange }) => {
               ? 'border-accent bg-accent/10 ring-1 ring-accent/20'
               : 'border-surface-alt bg-surface-alt/50 hover:bg-surface hover:border-text-secondary/30'
           }`}
+          {...tooltipProps(`${option.label} - ${option.description}`)}
         >
           <div className={`${value === option.id ? 'text-accent' : 'text-text-secondary'}`}>
             {option.icon}

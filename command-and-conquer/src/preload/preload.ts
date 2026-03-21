@@ -47,19 +47,19 @@ contextBridge.exposeInMainWorld('api', {
     listAnchors: (projectId: string) => ipcRenderer.invoke('knowledge:listAnchors', projectId),
   },
   prompts: {
-    compile: (projectId: string, taskId: string, agentId: string) => ipcRenderer.invoke('prompts:compile', projectId, taskId, agentId),
-    preview: (projectId: string, taskId: string, agentId: string) => ipcRenderer.invoke('prompts:preview', projectId, taskId, agentId),
+    compile: (projectId: string, taskId: string, agentId: string, taskMode?: 'implement' | 'audit' | 'regression') => ipcRenderer.invoke('prompts:compile', projectId, taskId, agentId, taskMode),
+    preview: (projectId: string, taskId: string, agentId: string, taskMode?: 'implement' | 'audit' | 'regression') => ipcRenderer.invoke('prompts:preview', projectId, taskId, agentId, taskMode),
     save: (projectId: string, taskId: string, runId: string, text: string) => ipcRenderer.invoke('prompts:save', projectId, taskId, runId, text),
     fuseAnalysis: (originalPrompt: string, llmOutput: string, apiKey: string) => ipcRenderer.invoke('prompts:fuse-analysis', originalPrompt, llmOutput, apiKey),
-    buildArchitect: (projectId: string, taskId: string) => ipcRenderer.invoke('prompts:build-architect', projectId, taskId),
+    buildArchitect: (projectId: string, taskId: string, targetCoder?: '5.4mini' | 'flash', taskMode?: 'implement' | 'audit' | 'regression') => ipcRenderer.invoke('prompts:build-architect', projectId, taskId, targetCoder, taskMode),
     compileArchitect: (projectId: string, taskId: string, architectOutput: string) => ipcRenderer.invoke('prompts:compile-architect', projectId, taskId, architectOutput),
   },
   gemini: {
     testKey: (apiKey: string) => ipcRenderer.invoke('gemini:test-key', apiKey),
     bootstrapKnowledge: (projectId: string, sourcePath: string, apiKey: string) => ipcRenderer.invoke('knowledge:bootstrap', projectId, sourcePath, apiKey),
     sendToFlash: (projectId: string, taskId: string, agentId: string, apiKey: string) => ipcRenderer.invoke('prompts:send-to-flash', projectId, taskId, agentId, apiKey),
-    tightenPrompt: (promptText: string, apiKey: string) =>
-      ipcRenderer.invoke('prompts:tighten', promptText, apiKey),
+    tightenPrompt: (promptText: string, apiKey: string, purpose?: 'prompt' | 'revision') =>
+      ipcRenderer.invoke('prompts:tighten', promptText, apiKey, purpose),
     generateRepoContext: (projectId: string, repoPath: string, apiKey: string) =>
       ipcRenderer.invoke('repos:generate-context', projectId, repoPath, apiKey),
     improveTask: (title: string, description: string, apiKey: string) =>

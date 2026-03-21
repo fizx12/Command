@@ -53,7 +53,8 @@ export class BootstrapKnowledgeService {
   async bootstrap(
     projectId: string,
     sourcePath: string,
-    apiKey: string
+    apiKey: string,
+    modelOverride?: string
   ): Promise<BootstrapResult> {
     try {
       const repoRoot = await fs.realpath(sourcePath);
@@ -86,8 +87,8 @@ export class BootstrapKnowledgeService {
       // Build structured prompt representation
       const prompt = this.buildBootstrapPrompt(limitedFiles);
 
-      // Pro - synthesising architecture docs from a full codebase requires real reasoning
-      const response = await this.geminiService.generate(prompt, apiKey, 'pro', 8192);
+      // Bootstrap docs are model-selectable; use the configured model override when provided.
+      const response = await this.geminiService.generate(prompt, apiKey, 'pro', 8192, undefined, modelOverride);
 
       // Parse file blocks
       const parsedFiles = GeminiService.parseFileBlocks(response);

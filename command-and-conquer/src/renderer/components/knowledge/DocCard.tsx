@@ -1,4 +1,5 @@
 import React from 'react';
+import { tooltipProps } from '../../utils/tooltips';
 
 interface DocCardProps {
   id: string;
@@ -28,6 +29,7 @@ const DocCard: React.FC<DocCardProps> = ({
     <div
       onClick={onClick}
       className="bg-surface-alt rounded-lg p-4 cursor-pointer hover:ring-1 hover:ring-accent transition-all flex flex-col gap-3 group"
+      {...tooltipProps(`Open document: ${title}`)}
     >
       <div className="flex justify-between items-start">
         <div className="min-w-0 pr-2">
