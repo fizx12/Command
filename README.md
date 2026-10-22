@@ -22,6 +22,7 @@ All decisions from the design audit have been incorporated.
 - `12_GUARDRAILS_AND_INVARIANTS.md` — all guardrails including size-gated closure rules
 - `13_CODING_STRATEGY.md` — smart guardrails + cheap coders split, model routing, prompt templates
 - `14_PHASE1_CHUNK_MANIFEST.md` — exact 71-file build order with model assignments per chunk
+- `15_PARALLEL_ACCOUNTS_AND_GEMINI_PLAN.md` — two Claude slots with usage failover, Gemini Flash/Flash-Lite lanes, parallel dispatcher
 
 ### Schemas
 - `schemas/job_result.schema.json`
